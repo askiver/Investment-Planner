@@ -2,8 +2,17 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import uuid
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Data models
 class Asset(BaseModel):

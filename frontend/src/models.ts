@@ -71,12 +71,13 @@ export class Loan {
     this.principal = principal;
     this.nominalInterestRate = nominalInterestRate;
     this.monthlyInterestRate = nominalInterestRate / 12;
-    this.monthlyPayment = this.calculateMonthlyPayment();
     this.years = years;
+    this.monthlyPayment = this.calculateMonthlyPayment();
     this.studentLoan = studentLoan;
   }
 
   calculateMonthlyPayment(): number {
+
     const n = this.years * 12;
     const r = this.monthlyInterestRate;
     const P = this.principal;
@@ -84,6 +85,24 @@ export class Loan {
   }
 
   
+  loanValue(months: number):[number[], number[]] {
+    const principals = [this.principal]
+    const ratePayments = [0]
+
+    let balance = this.principal;
+    let principalPayment = 0;
+    let interestPayment = 0;
+
+    for (let i = 0; i < months; i++) {
+      interestPayment = balance * this.monthlyInterestRate;
+      principalPayment = this.monthlyPayment - interestPayment;
+      balance = Math.max(balance - principalPayment, 0);
+      principals.push(balance);
+      ratePayments.push(interestPayment);
+    }
+    return [principals, ratePayments];
+
+  }
 
 
 } 

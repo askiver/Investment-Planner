@@ -1,16 +1,8 @@
 import { useState } from 'react'
 import './App.css'
 import { Property, Stock, Loan, Asset } from './models'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line } from 'recharts';
 
-function NewPage() {
-  return (
-    <div>
-      <h2>Welcome to the New Page!</h2>
-      <p>This is a new page visible from the root of the site.</p>
-    </div>
-  );
-}
 
 type InvestmentType = 'Property' | 'Stock' | 'Loan';
 type Investment = Property | Stock | Loan;
@@ -105,39 +97,15 @@ function App() {
     }
   };
 
-  // Calculate portfolio value over time
-  const calculatePortfolioOverTime = () => {
-    // For each month, sum the projected value of all investments
-    const monthlyTotals: number[] = Array(timelineMonths).fill(0);
-    investments.forEach(inv => {
-      if (inv instanceof Property || inv instanceof Stock) {
-        const values = (inv as Asset).projectedValue(timelineMonths, false);
-        for (let i = 0; i < timelineMonths; i++) {
-          monthlyTotals[i] += values[i];
-        }
-      } else if (inv instanceof Loan) {
-        // For loans, subtract the remaining principal over time
-        // We'll assume the principal is paid down linearly for simplicity
-        // (You can improve this with amortization logic if desired)
-        const principal = inv.principal;
-        const monthlyPayment = inv.monthlyPayment;
-        let remaining = principal;
-        for (let i = 0; i < timelineMonths; i++) {
-          monthlyTotals[i] -= Math.max(remaining, 0);
-          remaining -= monthlyPayment;
-        }
-      }
-    });
-    return monthlyTotals;
-  };
-  const portfolioOverTime = calculatePortfolioOverTime();
-
   // Prepare data for stacked area chart (without tax)
   const getChartData = () => {
     const data: any[] = [];
     const assetKeys = investments
       .filter(inv => inv instanceof Property || inv instanceof Stock)
       .map((inv, idx) => inv.name || `Asset${idx + 1}`);
+    const loanKeys = investments
+      .map((inv, idx) => (inv instanceof Loan ? inv.name || `Loan${idx + 1}` : null))
+      .filter((k): k is string => !!k);
     for (let i = 0; i < timelineMonths; i++) {
       const entry: any = { month: i };
       let runningTotal = 0;
@@ -148,19 +116,22 @@ function App() {
           entry[inv.name || `Asset${idx + 1}`] = values[i];
           runningTotal += values[i];
         } else if (inv instanceof Loan) {
-          const principal = inv.principal;
-          const monthlyPayment = inv.monthlyPayment;
-          let remaining = principal - monthlyPayment * i;
-          entry[inv.name || `Loan${idx + 1}`] = -Math.max(remaining, 0);
-          loanTotal += Math.max(remaining, 0);
+          const balances = hasLoanValue(inv)
+            ? inv.loanValue(timelineMonths)[0]
+            : Array(timelineMonths + 1).fill((inv as Loan).principal);
+          const loanValue = balances[i] !== undefined ? Math.max(balances[i], 0) : 0; // positive for graph
+          if (loanValue > 0) {
+            entry[inv.name || `Loan${idx + 1}`] = loanValue;
+          }
+          loanTotal += loanValue; // subtract from total
         }
       });
       entry['Total'] = runningTotal - loanTotal;
       data.push(entry);
     }
-    return { data, assetKeys };
+    return { data, assetKeys, loanKeys };
   };
-  const { data: chartData, assetKeys } = getChartData();
+  const { data: chartData, assetKeys, loanKeys } = getChartData();
 
   // Prepare data for stacked area chart (with tax)
   const getChartDataWithTax = () => {
@@ -168,6 +139,9 @@ function App() {
     const assetKeys = investments
       .filter(inv => inv instanceof Property || inv instanceof Stock)
       .map((inv, idx) => inv.name || `Asset${idx + 1}`);
+    const loanKeys = investments
+      .map((inv, idx) => (inv instanceof Loan ? inv.name || `Loan${idx + 1}` : null))
+      .filter((k): k is string => !!k);
     for (let i = 0; i < timelineMonths; i++) {
       const entry: any = { month: i };
       let runningTotal = 0;
@@ -178,19 +152,53 @@ function App() {
           entry[inv.name || `Asset${idx + 1}`] = values[i];
           runningTotal += values[i];
         } else if (inv instanceof Loan) {
-          const principal = inv.principal;
-          const monthlyPayment = inv.monthlyPayment;
-          let remaining = principal - monthlyPayment * i;
-          entry[inv.name || `Loan${idx + 1}`] = -Math.max(remaining, 0);
-          loanTotal += Math.max(remaining, 0);
+          const balances = hasLoanValue(inv)
+            ? inv.loanValue(timelineMonths)[0]
+            : Array(timelineMonths + 1).fill((inv as Loan).principal);
+          const loanValue = balances[i] !== undefined ? Math.max(balances[i], 0) : 0; // positive for graph
+          if (loanValue > 0) {
+            entry[inv.name || `Loan${idx + 1}`] = loanValue;
+          }
+          loanTotal += loanValue; // subtract from total
         }
       });
       entry['Total'] = runningTotal - loanTotal;
       data.push(entry);
     }
-    return { data, assetKeys };
+    return { data, assetKeys, loanKeys };
   };
-  const { data: chartDataWithTax, assetKeys: assetKeysWithTax } = getChartDataWithTax();
+  const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartDataWithTax();
+
+  // Type guard for loans with loanValue
+  function hasLoanValue(loan: any): loan is Loan & { loanValue: (months: number) => [number[], number[]] } {
+    return typeof loan.loanValue === 'function';
+  }
+
+  // Custom tooltip to show total
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length && payload[0].payload) {
+      const hoveredData = payload[0].payload;
+      console.log('Hovered data:', hoveredData); // Debug log
+      const total = typeof hoveredData.Total === 'number' ? hoveredData.Total : null;
+      return (
+        <div style={{ background: '#fff', border: '1px solid #ccc', padding: 8 }}>
+          <div><b>Month:</b> {label}</div>
+          {payload.map((p: any) => (
+            <div key={p.dataKey} style={{ color: p.color }}>
+              {p.name}: {p.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
+          ))}
+          {/* Always show the total, even if not in payload */}
+          {total !== null && (
+            <div style={{ marginTop: 4, color: '#000' }}>
+              <b>Total:</b> {total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
@@ -262,7 +270,7 @@ function App() {
           <XAxis dataKey="month" />
           <YAxis />
           <CartesianGrid strokeDasharray="3 3" />
-          <Tooltip />
+          <Tooltip content={<CustomTooltip />} />
           <Legend />
           {assetKeys.map((key, idx) => (
             <Area
@@ -272,6 +280,17 @@ function App() {
               stackId="1"
               stroke={idx % 2 === 0 ? '#8884d8' : '#82ca9d'}
               fill={`url(#color${key})`}
+              isAnimationActive={false}
+            />
+          ))}
+          {loanKeys.map((key, idx) => (
+            <Line
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stroke={idx % 2 === 0 ? '#d62728' : '#9467bd'}
+              dot={false}
+              strokeWidth={2}
               isAnimationActive={false}
             />
           ))}
@@ -291,7 +310,7 @@ function App() {
           <XAxis dataKey="month" />
           <YAxis />
           <CartesianGrid strokeDasharray="3 3" />
-          <Tooltip />
+          <Tooltip content={<CustomTooltip />} />
           <Legend />
           {assetKeysWithTax.map((key, idx) => (
             <Area
@@ -304,11 +323,22 @@ function App() {
               isAnimationActive={false}
             />
           ))}
+          {loanKeysWithTax.map((key, idx) => (
+            <Line
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stroke={idx % 2 === 0 ? '#d62728' : '#9467bd'}
+              dot={false}
+              strokeWidth={2}
+              isAnimationActive={false}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
       <h2>Investments</h2>
       <ul>
-        {investments.map((inv, idx) => (
+        {investments.map((inv) => (
           <li key={inv.id}>
             {inv instanceof Property && (
               <>

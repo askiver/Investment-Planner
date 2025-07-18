@@ -20,15 +20,17 @@ export abstract class Asset {
   }
 
   // Method for calculating the value of the asset after n months
-  projectedValue(months: number, tax: boolean): number[] {
+  projectedValue(months: number, tax: boolean, monthlyInvestment: number): number[] {
     const values = [];
     let value = this.initialValue;
+    let insertedValue = this.initialValue
     let taxAmount = 0;
     values.push(value);
     for (let i = 0; i < months; i++) {
-      value = value * (1 + this.monthlyIncrease);
+      value = value * (1 + this.monthlyIncrease) + monthlyInvestment;
+      insertedValue += monthlyInvestment
       if (tax) {
-        taxAmount = (value - this.initialValue) * this.taxRate;
+        taxAmount = (value - insertedValue) * this.taxRate;
         values.push(value - taxAmount)
       }
       else {
@@ -49,9 +51,11 @@ export class Property extends Asset {
 }
 
 export class Stock extends Asset {
+  monthlyInvestment : number
 
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number) {
+  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, monthlyInvestment: number) {
     super(id, name, initialValue, expectedReturn, taxRate);
+    this.monthlyInvestment = monthlyInvestment
   }
 }
 
@@ -62,47 +66,57 @@ export class Loan {
   nominalInterestRate: number; // e.g., 0.05 for 5%
   monthlyInterestRate: number; // e.g., 0.05 for 5%
   years: number;
-  studentLoan: boolean;
-  monthlyPayment: number;
+  monthsDelayed: number;
 
-  constructor(id: string, name: string, principal: number, nominalInterestRate: number, years: number, studentLoan: boolean) {
+  constructor(id: string, name: string, principal: number, nominalInterestRate: number, years: number, monthsDelayed: number = 0) {
     this.id = id;
     this.name = name;
     this.principal = principal;
     this.nominalInterestRate = nominalInterestRate;
     this.monthlyInterestRate = nominalInterestRate / 12;
     this.years = years;
-    this.monthlyPayment = this.calculateMonthlyPayment();
-    this.studentLoan = studentLoan;
+    this.monthsDelayed = monthsDelayed;
   }
 
-  calculateMonthlyPayment(): number {
-
-    const n = this.years * 12;
-    const r = this.monthlyInterestRate;
-    const P = this.principal;
-    return (P*r)/(1-Math.pow(1+r, -n));
+  static calculateMonthlyPayment(principal: number, nominalInterestRate: number, years: number, monthsDelayed: number): number {
+    const monthlyInterestRate = nominalInterestRate / 12;
+    let balance = principal;
+    for (let i = 0; i < monthsDelayed; i++) {
+      balance += balance * monthlyInterestRate;
+    }
+    const n = years * 12 - monthsDelayed;
+    if (n <= 0) return 0;
+    if (monthlyInterestRate === 0) return balance / n;
+    return (balance * monthlyInterestRate) / (1 - Math.pow(1 + monthlyInterestRate, -n));
   }
 
-  
-  loanValue(months: number):[number[], number[]] {
-    const principals = [this.principal]
-    const ratePayments = [0]
+  loanValue(months: number, monthsDelayed: number = this.monthsDelayed): [number[], number[]] {
+    const principals = [];
+    const ratePayments = [];
 
     let balance = this.principal;
-    let principalPayment = 0;
     let interestPayment = 0;
 
+    // Accumulate interest during delay
+    for (let i = 0; i < monthsDelayed; i++) {
+      interestPayment = balance * this.monthlyInterestRate;
+      balance += interestPayment;
+      principals.push(balance);
+      ratePayments.push(interestPayment);
+    }
+
+    // Recalculate payment for remaining term
+    const n = this.years * 12 - monthsDelayed;
+    const monthlyPayment = Loan.calculateMonthlyPayment(balance, this.nominalInterestRate, this.years, 0);
+
+    // Amortization after delay
     for (let i = 0; i < months; i++) {
       interestPayment = balance * this.monthlyInterestRate;
-      principalPayment = this.monthlyPayment - interestPayment;
+      const principalPayment = monthlyPayment - interestPayment;
       balance = Math.max(balance - principalPayment, 0);
       principals.push(balance);
       ratePayments.push(interestPayment);
     }
     return [principals, ratePayments];
-
   }
-
-
 } 

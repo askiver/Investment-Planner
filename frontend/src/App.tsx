@@ -22,13 +22,16 @@ function App() {
     principal: '',
     nominalInterestRate: '', // as percent
     years: '',
-    studentLoan: false,
+    monthlyInvestment: '', // for stocks
+    monthsDelayed: '', // for loans
   });
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
       setForm({ ...form, [name]: (e.target as HTMLInputElement).checked });
+    } else if (name === 'monthsDelayed') {
+      setForm({ ...form, [name]: String(value) });
     } else {
       setForm({ ...form, [name]: value });
     }
@@ -46,7 +49,8 @@ function App() {
       principal: '',
       nominalInterestRate: '',
       years: '',
-      studentLoan: false,
+      monthlyInvestment: '',
+      monthsDelayed: '',
     });
   };
 
@@ -69,7 +73,8 @@ function App() {
         form.name,
         parseFloat(form.initialValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
-        parseFloat(form.taxRate) / 100         // convert percent to decimal
+        parseFloat(form.taxRate) / 100,        // convert percent to decimal
+        parseFloat(form.monthlyInvestment) || 0
       );
     } else if (investmentType === 'Loan') {
       newInvestment = new Loan(
@@ -78,7 +83,7 @@ function App() {
         parseFloat(form.principal),
         parseFloat(form.nominalInterestRate) / 100, // convert percent to decimal
         parseInt(form.years),
-        form.studentLoan
+        parseInt(form.monthsDelayed || '0')
       );
     }
     if (newInvestment) {
@@ -92,7 +97,8 @@ function App() {
         principal: '',
         nominalInterestRate: '',
         years: '',
-        studentLoan: false,
+        monthlyInvestment: '',
+        monthsDelayed: '', // always reset as string
       });
     }
   };
@@ -112,7 +118,7 @@ function App() {
       let loanTotal = 0;
       investments.forEach((inv, idx) => {
         if (inv instanceof Property || inv instanceof Stock) {
-          const values = (inv as Asset).projectedValue(timelineMonths, false);
+          const values = (inv as Asset).projectedValue(timelineMonths, false, inv instanceof Stock ? parseFloat(inv.monthlyInvestment) || 0 : 0);
           entry[inv.name || `Asset${idx + 1}`] = values[i];
           runningTotal += values[i];
         } else if (inv instanceof Loan) {
@@ -148,7 +154,7 @@ function App() {
       let loanTotal = 0;
       investments.forEach((inv, idx) => {
         if (inv instanceof Property || inv instanceof Stock) {
-          const values = (inv as Asset).projectedValue(timelineMonths, true);
+          const values = (inv as Asset).projectedValue(timelineMonths, true, inv instanceof Stock ? parseFloat(inv.monthlyInvestment) || 0 : 0);
           entry[inv.name || `Asset${idx + 1}`] = values[i];
           runningTotal += values[i];
         } else if (inv instanceof Loan) {
@@ -200,6 +206,39 @@ function App() {
     return null;
   };
 
+  // Handler for inline editing of investments
+  const handleInvestmentEdit = (id: string, field: string, value: string | number | boolean) => {
+    setInvestments(prev => prev.map(inv => {
+      if (inv.id !== id) return inv;
+      // For each type, update the relevant fields
+      if (inv instanceof Property) {
+        if (field === 'name') return new Property(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate, inv.primaryResidence);
+        if (field === 'initialValue') return new Property(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate, inv.primaryResidence);
+        if (field === 'expectedReturn') return new Property(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate, inv.primaryResidence);
+        if (field === 'taxRate') return new Property(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100, inv.primaryResidence);
+        if (field === 'primaryResidence') return new Property(id, inv.name, inv.initialValue, inv.yearlyIncrease, inv.taxRate, value as boolean);
+        return inv;
+      }
+      if (inv instanceof Stock) {
+        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate, inv.monthlyInvestment);
+        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate, inv.monthlyInvestment);
+        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate, inv.monthlyInvestment);
+        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100, inv.monthlyInvestment);
+        if (field === 'monthlyInvestment') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, inv.taxRate, parseFloat(value as string));
+        return inv;
+      }
+      if (inv instanceof Loan) {
+        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.nominalInterestRate, inv.years, inv.monthsDelayed);
+        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.nominalInterestRate, inv.years, inv.monthsDelayed);
+        if (field === 'nominalInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.years, inv.monthsDelayed);
+        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.nominalInterestRate, parseInt(value as string), inv.monthsDelayed);
+        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.nominalInterestRate, inv.years, parseInt(value as string));
+        return inv;
+      }
+      return inv;
+    }));
+  };
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
       <h1>Investment Planner</h1>
@@ -229,6 +268,7 @@ function App() {
             <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />{' '}
             <input name="expectedReturn" placeholder="Yearly Increase (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
             <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
+            <input name="monthlyInvestment" placeholder="Monthly Investment" type="number" value={form.monthlyInvestment} onChange={handleFormChange} step="any" min={0} />{' '}
           </>
         )}
         {investmentType === 'Loan' && (
@@ -236,9 +276,7 @@ function App() {
             <input name="principal" placeholder="Principal" type="number" value={form.principal} onChange={handleFormChange} step="any" required />{' '}
             <input name="nominalInterestRate" placeholder="Nominal Interest Rate (%)" type="number" value={form.nominalInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
             <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />{' '}
-            <label>
-              <input name="studentLoan" type="checkbox" checked={form.studentLoan} onChange={handleFormChange} /> Student Loan
-            </label>
+            <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />{' '}
           </>
         )}
         <button type="submit">Add</button>
@@ -339,20 +377,47 @@ function App() {
       <h2>Investments</h2>
       <ul>
         {investments.map((inv) => (
-          <li key={inv.id}>
+          <li key={inv.id} style={{ marginBottom: 12 }}>
             {inv instanceof Property && (
               <>
-                <b>Property:</b> {inv.name} (${inv.initialValue}) @ {Number(inv.yearlyIncrease) * 100}%/yr, Tax: {Number(inv.taxRate) * 100}%{inv.primaryResidence ? ', Primary Residence' : ''}
+                <b>Property:</b>
+                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.initialValue} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.yearlyIncrease * 100} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.taxRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                <label style={{ marginLeft: 8 }}>
+                  <input type="checkbox" checked={inv.primaryResidence} onChange={e => handleInvestmentEdit(inv.id, 'primaryResidence', e.target.checked)} /> Primary Residence
+                </label>
               </>
             )}
             {inv instanceof Stock && (
               <>
-                <b>Stock:</b> {inv.name} (${inv.initialValue}) @ {Number(inv.yearlyIncrease) * 100}%/yr, Tax: {Number(inv.taxRate) * 100}%
+                <b>Stock:</b>
+                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.initialValue} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.yearlyIncrease * 100} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.taxRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.monthlyInvestment} onChange={e => handleInvestmentEdit(inv.id, 'monthlyInvestment', e.target.value)} /> (Monthly Investment)
               </>
             )}
             {inv instanceof Loan && (
               <>
-                <b>Loan:</b> {inv.name} (${inv.principal}) @ {Number(inv.nominalInterestRate) * 100}%/yr, {inv.years} years{inv.studentLoan ? ', Student Loan' : ''}
+                <b>Loan:</b>
+                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.principal} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.nominalInterestRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'nominalInterestRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.years} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.monthsDelayed} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
+                <div style={{ marginLeft: 16, color: '#555' }}>
+                  Monthly Payment: ${
+                    Loan.calculateMonthlyPayment(
+                      inv.principal,
+                      inv.nominalInterestRate,
+                      inv.years,
+                      inv.monthsDelayed
+                    ).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                  }
+                </div>
               </>
             )}
           </li>

@@ -1,4 +1,11 @@
 // Common models for the investment planner
+export interface LoanSchedule {
+  /* Arrays have identical length = totalMonths.
+     Index 0 means “end of month 0” (today → next month). */
+  balances:      number[];   // running balance
+  principalPaid: number[];   // out-going principal that month
+  interestPaid:  number[];   // out-going interest  "
+}
 
 export abstract class Asset {
   id: string;
@@ -8,8 +15,9 @@ export abstract class Asset {
   yearlyIncrease: number; // e.g., 0.07 for 7%
   monthlyIncrease: number; // e.g., 0.05 for 5%
   taxRate: number;        // e.g., 0.22 for 22%
+  color: string;
 
-  constructor(id: string, name: string, initialValue: number, yearlyIncrease: number, taxRate: number) {
+  constructor(id: string, name: string, initialValue: number, yearlyIncrease: number, taxRate: number, color: string) {
     this.id = id;
     this.name = name;
     this.initialValue = initialValue;
@@ -17,6 +25,7 @@ export abstract class Asset {
     this.yearlyIncrease = yearlyIncrease;
     this.monthlyIncrease = Math.pow(1 + yearlyIncrease, 1/12) - 1;
     this.taxRate = taxRate;
+    this.color = color;
   }
 
   // Method for calculating the value of the asset after n months
@@ -42,18 +51,15 @@ export abstract class Asset {
 }
 
 export class Property extends Asset {
-  primaryResidence: boolean;
-
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, primaryResidence: boolean) {
-    super(id, name, initialValue, expectedReturn, taxRate);
-    this.primaryResidence = primaryResidence;
+  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, color: string) {
+    super(id, name, initialValue, expectedReturn, taxRate, color);
   }
 }
 
 export class Stock extends Asset {
 
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number) {
-    super(id, name, initialValue, expectedReturn, taxRate);
+  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, color: string) {
+    super(id, name, initialValue, expectedReturn, taxRate, color);
   }
 }
 
@@ -65,8 +71,9 @@ export class Loan {
   monthlyInterestRate: number; // e.g., 0.05 for 5%
   years: number;
   monthsDelayed: number;
+  color: string;
 
-  constructor(id: string, name: string, principal: number, nominalInterestRate: number, years: number, monthsDelayed: number = 0) {
+  constructor(id: string, name: string, principal: number, nominalInterestRate: number, years: number, monthsDelayed: number = 0, color: string) {
     this.id = id;
     this.name = name;
     this.principal = principal;
@@ -74,6 +81,7 @@ export class Loan {
     this.monthlyInterestRate = nominalInterestRate / 12;
     this.years = years;
     this.monthsDelayed = monthsDelayed;
+    this.color = color;
   }
 
   calculateMonthlyPayment(years: number, monthsDelayed: number, raisedPrincipal?: number): number {
@@ -120,4 +128,46 @@ export class Loan {
     }
     return [principals, ratePayments];
   }
+
+  /**
+   * Return monthly cash-flows *aligned* to `totalMonths`.
+   * Months before the loan starts amortising are padded with zeros.
+   */
+  getSchedule(totalMonths: number): LoanSchedule {
+    const balances      = new Array<number>(totalMonths + 1).fill(0); // +1 so last item is closing balance
+    const principalPaid = new Array<number>(totalMonths).fill(0);
+    const interestPaid  = new Array<number>(totalMonths).fill(0);
+
+    /* Step 1 – capitalise interest during the deferment window
+       (no cash leaves your pocket yet).                           */
+    let balance = this.principal;
+    balances[0] = balance;
+
+    for (let m = 0; m < this.monthsDelayed && m < totalMonths; m++) {
+      balance += balance * this.monthlyInterestRate;
+      balances[m + 1] = balance;
+      /* nothing booked to principalPaid / interestPaid */
+    }
+
+    /* Step 2 – level payment once amortisation starts   */
+    const payMonths     = Math.max(totalMonths - this.monthsDelayed, 0);
+    const monthlyPmt    = this.calculateMonthlyPayment(this.years, 0, balance);
+
+    for (let k = 0; k < payMonths; k++) {
+      const idx       = this.monthsDelayed + k;
+      const interest  = balance * this.monthlyInterestRate;
+      const principal = Math.min(monthlyPmt - interest, balance);
+
+      interestPaid[idx]  = interest;
+      principalPaid[idx] = principal;
+
+      balance           -= principal;
+      balances[idx + 1]  = balance;
+      if (balance <= 0) break;   // early payoff guard
+    }
+
+    /* If loan fully repaid early, balances stay 0 afterwards */
+    return { balances, principalPaid, interestPaid };
+  }
+
 } 

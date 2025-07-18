@@ -35,65 +35,60 @@ export function calculateMonthlyPlan(
   months: number,
 ): MonthlyPlan {
 
+  /* --------------- PASS 0: overall timeline length --------------- */
+  const maxDelayed = loans.length ? Math.max(...loans.map(l => l.monthsDelayed)) : 0;
+  const totalMonths = months + maxDelayed;
+
+  /* --------------- PASS 1: aggregate loan cash-flows ------------- */
+  const principalOut = new Array<number>(totalMonths).fill(0);
+  const interestOut  = new Array<number>(totalMonths).fill(0);
+
   const plans: MonthlyPlan = {
     loans: [],
     stockInvestments: [],
     propertyInvestments: [],
   };
 
-  let monthlyCostLoans = 0
-  const ratePaymentsLength = months + 1
-  const ratePaymentsSums = new Array<number>(ratePaymentsLength).fill(0);
+  loans.forEach(loan => {
+    const sch = loan.getSchedule(totalMonths);
 
-  loans.forEach((loan) => {
+    /* element-wise accumulate */
+    sch.principalPaid.forEach((v, i) => principalOut[i] += v);
+    sch.interestPaid .forEach((v, i) => interestOut [i] += v);
 
-    const [loanPrincipals, loanRatePayments] = loan.loanValue(months, loan.monthsDelayed)
+    plans.loans.push({
+      loanName:   loan.name,
+      monthlyCost: 0,                 // kept only for UI – not used in math
+      principals: sch.balances,
+      ratePayments: sch.interestPaid,
+    });
+  });
 
-    const loanPlan: LoanPaymentPlan = {
-      loanName: loan.name,
-      monthlyCost: loan.calculateMonthlyPayment(months/12, loan.monthsDelayed),
-      principals:loanPrincipals,
-      ratePayments:loanRatePayments
-    }
-    plans.loans.push(loanPlan)
+  /* --------------- PASS 2: build investable income --------------- */
+  const TAX_RATE = 0.22;
+  const investable = interestOut.map((intPaid, i) =>
+    income                      // salary
+    - (principalOut[i] + intPaid) // cash actually sent to lender
+    + intPaid * TAX_RATE          // tax shield only on PAID interest
+  );
 
-    for (let i = 0; i < ratePaymentsLength; i++) {
-      ratePaymentsSums[i] += loanRatePayments[i]
-    }
-    monthlyCostLoans += loanPlan.monthlyCost
-  })
-
-  const remainingIncome = income - monthlyCostLoans
-  const investableIncome = ratePaymentsSums.map(v => remainingIncome + v * 0.22);
-  
-
-  if (stocks.length > 0) {
-    const stock = stocks[0]
-    
-    const valuesBeforeTax = stock.projectedValue(months, false, investableIncome)
-    const valuesAfterTax = stock.projectedValue(months, true, investableIncome)
-
-    const stockPlan: AssetPaymentPlan = {
-      assetName: stock.name,
-      totalValues: valuesBeforeTax,
-      taxedValues: valuesAfterTax,
-    }
-
-    plans.stockInvestments.push(stockPlan)
-
+  /* --------------- PASS 3: project assets ------------------------ */
+  if (stocks.length) {
+    const s = stocks[0];
+    plans.stockInvestments.push({
+      assetName:   s.name,
+      totalValues: s.projectedValue(totalMonths, false, investable),
+      taxedValues: s.projectedValue(totalMonths, true,  investable),
+    });
   }
 
-  properties.forEach((property) => {
-    const valuesBeforeTax = property.projectedValue(months, false, new Array(months).fill(0))
-    const valuesAfterTax = property.projectedValue(months, true, new Array(months).fill(0))
+  properties.forEach(p => {
+    plans.propertyInvestments.push({
+      assetName:   p.name,
+      totalValues: p.projectedValue(totalMonths, false, new Array(totalMonths).fill(0)),
+      taxedValues: p.projectedValue(totalMonths, true,  new Array(totalMonths).fill(0)),
+    });
+  });
 
-    const properyPlan: AssetPaymentPlan = {
-      assetName: property.name,
-      totalValues: valuesBeforeTax,
-      taxedValues: valuesAfterTax,
-    }
-
-    plans.propertyInvestments.push(properyPlan)
-  })
   return plans;
-} 
+}

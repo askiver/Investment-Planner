@@ -20,15 +20,15 @@ export abstract class Asset {
   }
 
   // Method for calculating the value of the asset after n months
-  projectedValue(months: number, tax: boolean, monthlyInvestment: number): number[] {
+  projectedValue(months: number, tax: boolean, monthlyInvestments: number[]): number[] {
     const values = [];
     let value = this.initialValue;
     let insertedValue = this.initialValue
     let taxAmount = 0;
     values.push(value);
     for (let i = 0; i < months; i++) {
-      value = value * (1 + this.monthlyIncrease) + monthlyInvestment;
-      insertedValue += monthlyInvestment
+      value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
+      insertedValue += monthlyInvestments[i]
       if (tax) {
         taxAmount = (value - insertedValue) * this.taxRate;
         values.push(value - taxAmount)
@@ -51,11 +51,9 @@ export class Property extends Asset {
 }
 
 export class Stock extends Asset {
-  monthlyInvestment : number
 
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, monthlyInvestment: number) {
+  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number) {
     super(id, name, initialValue, expectedReturn, taxRate);
-    this.monthlyInvestment = monthlyInvestment
   }
 }
 
@@ -78,9 +76,13 @@ export class Loan {
     this.monthsDelayed = monthsDelayed;
   }
 
-  static calculateMonthlyPayment(principal: number, nominalInterestRate: number, years: number, monthsDelayed: number): number {
-    const monthlyInterestRate = nominalInterestRate / 12;
-    let balance = principal;
+  calculateMonthlyPayment(years: number, monthsDelayed: number, raisedPrincipal?: number): number {
+    const monthlyInterestRate = this.nominalInterestRate / 12;
+    let balance = this.principal
+    if (raisedPrincipal) {
+      balance = raisedPrincipal
+    }
+
     for (let i = 0; i < monthsDelayed; i++) {
       balance += balance * monthlyInterestRate;
     }
@@ -91,8 +93,8 @@ export class Loan {
   }
 
   loanValue(months: number, monthsDelayed: number = this.monthsDelayed): [number[], number[]] {
-    const principals = [];
-    const ratePayments = [];
+    const principals = [this.principal];
+    const ratePayments = [0];
 
     let balance = this.principal;
     let interestPayment = 0;
@@ -106,8 +108,7 @@ export class Loan {
     }
 
     // Recalculate payment for remaining term
-    const n = this.years * 12 - monthsDelayed;
-    const monthlyPayment = Loan.calculateMonthlyPayment(balance, this.nominalInterestRate, this.years, 0);
+    const monthlyPayment = this.calculateMonthlyPayment(this.years, 0, balance);
 
     // Amortization after delay
     for (let i = 0; i < months; i++) {

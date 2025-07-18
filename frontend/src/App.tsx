@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import './App.css'
-import { Property, Stock, Loan, Asset } from './models'
+import { Property, Stock, Loan } from './models'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line } from 'recharts';
+import { calculateMonthlyPlan } from './financeLogic';
+import type { MonthlyPlan } from './financeLogic';
 
 
 type InvestmentType = 'Property' | 'Stock' | 'Loan';
@@ -9,8 +11,9 @@ type Investment = Property | Stock | Loan;
 
 function App() {
   const [investmentType, setInvestmentType] = useState<InvestmentType>('Property');
-  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [investments, setInvestments] = useState<Array<Property | Stock | Loan>>([]);
   const [timelineMonths, setTimelineMonths] = useState(12);
+  const [income, setIncome] = useState('');
 
   // Form state
   const [form, setForm] = useState<any>({
@@ -74,7 +77,6 @@ function App() {
         parseFloat(form.initialValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
         parseFloat(form.taxRate) / 100,        // convert percent to decimal
-        parseFloat(form.monthlyInvestment) || 0
       );
     } else if (investmentType === 'Loan') {
       newInvestment = new Loan(
@@ -103,77 +105,66 @@ function App() {
     }
   };
 
-  // Prepare data for stacked area chart (without tax)
-  const getChartData = () => {
-    const data: any[] = [];
-    const assetKeys = investments
-      .filter(inv => inv instanceof Property || inv instanceof Stock)
-      .map((inv, idx) => inv.name || `Asset${idx + 1}`);
-    const loanKeys = investments
-      .map((inv, idx) => (inv instanceof Loan ? inv.name || `Loan${idx + 1}` : null))
-      .filter((k): k is string => !!k);
-    for (let i = 0; i < timelineMonths; i++) {
-      const entry: any = { month: i };
-      let runningTotal = 0;
-      let loanTotal = 0;
-      investments.forEach((inv, idx) => {
-        if (inv instanceof Property || inv instanceof Stock) {
-          const values = (inv as Asset).projectedValue(timelineMonths, false, inv instanceof Stock ? parseFloat(inv.monthlyInvestment) || 0 : 0);
-          entry[inv.name || `Asset${idx + 1}`] = values[i];
-          runningTotal += values[i];
-        } else if (inv instanceof Loan) {
-          const balances = hasLoanValue(inv)
-            ? inv.loanValue(timelineMonths)[0]
-            : Array(timelineMonths + 1).fill((inv as Loan).principal);
-          const loanValue = balances[i] !== undefined ? Math.max(balances[i], 0) : 0; // positive for graph
-          if (loanValue > 0) {
-            entry[inv.name || `Loan${idx + 1}`] = loanValue;
-          }
-          loanTotal += loanValue; // subtract from total
-        }
-      });
-      entry['Total'] = runningTotal - loanTotal;
-      data.push(entry);
-    }
-    return { data, assetKeys, loanKeys };
-  };
-  const { data: chartData, assetKeys, loanKeys } = getChartData();
+  // Split investments into types
+  const loans = investments.filter(inv => inv instanceof Loan) as Loan[];
+  const stocks = investments.filter(inv => inv instanceof Stock) as Stock[];
+  const properties = investments.filter(inv => inv instanceof Property) as Property[];
 
-  // Prepare data for stacked area chart (with tax)
-  const getChartDataWithTax = () => {
+  // Calculate monthly plan using financeLogic
+  const plan: MonthlyPlan = calculateMonthlyPlan(
+    parseFloat(income) || 0,
+    loans,
+    stocks,
+    properties,
+    timelineMonths
+  );
+
+  // Prepare data for stacked area chart (pre-tax and after-tax)
+  const getChartData = (useTaxed: boolean) => {
     const data: any[] = [];
-    const assetKeys = investments
-      .filter(inv => inv instanceof Property || inv instanceof Stock)
-      .map((inv, idx) => inv.name || `Asset${idx + 1}`);
-    const loanKeys = investments
-      .map((inv, idx) => (inv instanceof Loan ? inv.name || `Loan${idx + 1}` : null))
-      .filter((k): k is string => !!k);
-    for (let i = 0; i < timelineMonths; i++) {
-      const entry: any = { month: i };
+    const maxMonths = timelineMonths + 1;
+    // Track which loans are still active for each month
+    let activeLoanKeys: Set<string> = new Set(plan.loans.map(l => l.loanName));
+    for (let m = 0; m < maxMonths; m++) {
+      const entry: any = { month: m };
       let runningTotal = 0;
       let loanTotal = 0;
-      investments.forEach((inv, idx) => {
-        if (inv instanceof Property || inv instanceof Stock) {
-          const values = (inv as Asset).projectedValue(timelineMonths, true, inv instanceof Stock ? parseFloat(inv.monthlyInvestment) || 0 : 0);
-          entry[inv.name || `Asset${idx + 1}`] = values[i];
-          runningTotal += values[i];
-        } else if (inv instanceof Loan) {
-          const balances = hasLoanValue(inv)
-            ? inv.loanValue(timelineMonths)[0]
-            : Array(timelineMonths + 1).fill((inv as Loan).principal);
-          const loanValue = balances[i] !== undefined ? Math.max(balances[i], 0) : 0; // positive for graph
-          if (loanValue > 0) {
-            entry[inv.name || `Loan${idx + 1}`] = loanValue;
-          }
-          loanTotal += loanValue; // subtract from total
+      // Stocks
+      plan.stockInvestments.forEach(stockPlan => {
+        const val = useTaxed ? stockPlan.taxedValues[m] ?? 0 : stockPlan.totalValues[m] ?? 0;
+        entry[stockPlan.assetName] = val;
+        runningTotal += val;
+      });
+      // Properties
+      plan.propertyInvestments.forEach(propertyPlan => {
+        const val = useTaxed ? propertyPlan.taxedValues[m] ?? 0 : propertyPlan.totalValues[m] ?? 0;
+        entry[propertyPlan.assetName] = val;
+        runningTotal += val;
+      });
+      // Loans
+      plan.loans.forEach(loanPlan => {
+        const principal = loanPlan.principals[m] ?? 0;
+        if (principal > 0) {
+          entry[loanPlan.loanName] = principal;
+          loanTotal += principal;
+        } else {
+          // Remove loan from active set if paid off
+          activeLoanKeys.delete(loanPlan.loanName);
         }
       });
       entry['Total'] = runningTotal - loanTotal;
       data.push(entry);
     }
-    return { data, assetKeys, loanKeys };
+    // Only include loan keys that are active at any point in the timeline
+    const loanKeys = plan.loans.map(l => l.loanName).filter(name => data.some(entry => entry[name] > 0));
+    return {
+      data,
+      assetKeys: plan.stockInvestments.map(s => s.assetName).concat(plan.propertyInvestments.map(p => p.assetName)),
+      loanKeys
+    };
   };
-  const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartDataWithTax();
+  const { data: chartData, assetKeys, loanKeys } = getChartData(false);
+  const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartData(true);
 
   // Type guard for loans with loanValue
   function hasLoanValue(loan: any): loan is Loan & { loanValue: (months: number) => [number[], number[]] } {
@@ -182,19 +173,17 @@ function App() {
 
   // Custom tooltip to show total
   const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length && payload[0].payload) {
-      const hoveredData = payload[0].payload;
-      console.log('Hovered data:', hoveredData); // Debug log
+    if (active && label !== undefined) {
+      const hoveredData = payload && payload.length && payload[0].payload ? payload[0].payload : {};
       const total = typeof hoveredData.Total === 'number' ? hoveredData.Total : null;
       return (
         <div style={{ background: '#fff', border: '1px solid #ccc', padding: 8 }}>
-          <div><b>Month:</b> {label}</div>
-          {payload.map((p: any) => (
+          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Month: {label}</div>
+          {payload && payload.length > 0 && payload.map((p: any) => (
             <div key={p.dataKey} style={{ color: p.color }}>
-              {p.name}: {p.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              {p.name}: {p.value?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </div>
           ))}
-          {/* Always show the total, even if not in payload */}
           {total !== null && (
             <div style={{ marginTop: 4, color: '#000' }}>
               <b>Total:</b> {total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -220,11 +209,10 @@ function App() {
         return inv;
       }
       if (inv instanceof Stock) {
-        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate, inv.monthlyInvestment);
-        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate, inv.monthlyInvestment);
-        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate, inv.monthlyInvestment);
-        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100, inv.monthlyInvestment);
-        if (field === 'monthlyInvestment') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, inv.taxRate, parseFloat(value as string));
+        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate);
+        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate);
+        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate);
+        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100);
         return inv;
       }
       if (inv instanceof Loan) {
@@ -268,7 +256,6 @@ function App() {
             <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />{' '}
             <input name="expectedReturn" placeholder="Yearly Increase (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
             <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="monthlyInvestment" placeholder="Monthly Investment" type="number" value={form.monthlyInvestment} onChange={handleFormChange} step="any" min={0} />{' '}
           </>
         )}
         {investmentType === 'Loan' && (
@@ -294,6 +281,18 @@ function App() {
           />
         </label>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <label>
+          Monthly Income:
+          <input
+            type="number"
+            value={income}
+            onChange={e => setIncome(e.target.value)}
+            style={{ marginLeft: 8, width: 120 }}
+            min={0}
+          />
+        </label>
+      </div>
       <h2>Portfolio Value Over Time (No Tax)</h2>
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -308,7 +307,7 @@ function App() {
           <XAxis dataKey="month" />
           <YAxis />
           <CartesianGrid strokeDasharray="3 3" />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={CustomTooltip} />
           <Legend />
           {assetKeys.map((key, idx) => (
             <Area
@@ -348,7 +347,7 @@ function App() {
           <XAxis dataKey="month" />
           <YAxis />
           <CartesianGrid strokeDasharray="3 3" />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={CustomTooltip} />
           <Legend />
           {assetKeysWithTax.map((key, idx) => (
             <Area
@@ -382,9 +381,9 @@ function App() {
               <>
                 <b>Property:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.initialValue} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.yearlyIncrease * 100} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.taxRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyIncrease * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
                 <label style={{ marginLeft: 8 }}>
                   <input type="checkbox" checked={inv.primaryResidence} onChange={e => handleInvestmentEdit(inv.id, 'primaryResidence', e.target.checked)} /> Primary Residence
                 </label>
@@ -394,25 +393,22 @@ function App() {
               <>
                 <b>Stock:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.initialValue} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.yearlyIncrease * 100} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.taxRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.monthlyInvestment} onChange={e => handleInvestmentEdit(inv.id, 'monthlyInvestment', e.target.value)} /> (Monthly Investment)
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyIncrease * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
               </>
             )}
             {inv instanceof Loan && (
               <>
                 <b>Loan:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={inv.principal} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.nominalInterestRate * 100} onChange={e => handleInvestmentEdit(inv.id, 'nominalInterestRate', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.years} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={inv.monthsDelayed} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
+                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.nominalInterestRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'nominalInterestRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                 <div style={{ marginLeft: 16, color: '#555' }}>
                   Monthly Payment: ${
-                    Loan.calculateMonthlyPayment(
-                      inv.principal,
-                      inv.nominalInterestRate,
+                    inv.calculateMonthlyPayment(
                       inv.years,
                       inv.monthsDelayed
                     ).toLocaleString(undefined, { maximumFractionDigits: 2 })

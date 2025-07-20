@@ -67,25 +67,25 @@ export class Loan {
   id: string;
   name: string;
   principal: number;
-  nominalInterestRate: number; // e.g., 0.05 for 5%
+  effectiveInterestRate: number; // e.g., 0.05 for 5%
   monthlyInterestRate: number; // e.g., 0.05 for 5%
   years: number;
   monthsDelayed: number;
   color: string;
 
-  constructor(id: string, name: string, principal: number, nominalInterestRate: number, years: number, monthsDelayed: number = 0, color: string) {
+  constructor(id: string, name: string, principal: number, effectiveInterestRate: number, years: number, monthsDelayed: number = 0, color: string) {
     this.id = id;
     this.name = name;
     this.principal = principal;
-    this.nominalInterestRate = nominalInterestRate;
-    this.monthlyInterestRate = nominalInterestRate / 12;
+    this.effectiveInterestRate = effectiveInterestRate;
+    this.monthlyInterestRate = Math.pow(1 + effectiveInterestRate, 1/12) - 1;
     this.years = years;
     this.monthsDelayed = monthsDelayed;
     this.color = color;
   }
 
   calculateMonthlyPayment(years: number, monthsDelayed: number, raisedPrincipal?: number): number {
-    const monthlyInterestRate = this.nominalInterestRate / 12;
+    const monthlyInterestRate = this.monthlyInterestRate
     let balance = this.principal
     if (raisedPrincipal) {
       balance = raisedPrincipal

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { Property, Stock, Loan } from './models'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { calculateMonthlyPlan } from './financeLogic';
 import type { MonthlyPlan } from './financeLogic';
 
@@ -22,7 +22,7 @@ function App() {
     expectedReturn: '', // as percent
     taxRate: '',        // as percent
     principal: '',
-    nominalInterestRate: '', // as percent
+    effectiveInterestRate: '', // as percent
     years: '',
     monthlyInvestment: '', // for stocks
     monthsDelayed: '', // for loans
@@ -37,6 +37,8 @@ function App() {
       setForm({ ...form, [name]: String(value) });
     } else if (name === 'color') {
       setForm({ ...form, color: value });
+    } else if (name === 'effectiveInterestRate') {
+      setForm({ ...form, effectiveInterestRate: value });
     } else {
       setForm({ ...form, [name]: value });
     }
@@ -51,7 +53,7 @@ function App() {
       taxRate: '',
       location: '',
       principal: '',
-      nominalInterestRate: '',
+      effectiveInterestRate: '',
       years: '',
       monthlyInvestment: '',
       monthsDelayed: '',
@@ -88,7 +90,7 @@ function App() {
         id,
         form.name,
         parseFloat(form.principal),
-        parseFloat(form.nominalInterestRate) / 100, // convert percent to decimal
+        parseFloat(form.effectiveInterestRate) / 100, // convert percent to decimal
         parseInt(form.years),
         parseInt(form.monthsDelayed || '0'),
         color
@@ -102,7 +104,7 @@ function App() {
         expectedReturn: '',
         taxRate: '',
         principal: '',
-        nominalInterestRate: '',
+        effectiveInterestRate: '',
         years: '',
         monthlyInvestment: '',
         monthsDelayed: '', // always reset as string
@@ -172,11 +174,6 @@ function App() {
   const { data: chartData, assetKeys, loanKeys } = getChartData(false);
   const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartData(true);
 
-  // Type guard for loans with loanValue
-  function hasLoanValue(loan: any): loan is Loan & { loanValue: (months: number) => [number[], number[]] } {
-    return typeof loan.loanValue === 'function';
-  }
-
   // Custom tooltip to show total
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && label !== undefined) {
@@ -223,12 +220,12 @@ function App() {
         return inv;
       }
       if (inv instanceof Loan) {
-        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.nominalInterestRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.nominalInterestRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'nominalInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.nominalInterestRate, parseInt(value as string), inv.monthsDelayed, inv.color);
-        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.nominalInterestRate, inv.years, parseInt(value as string), inv.color);
-        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.nominalInterestRate, inv.years, inv.monthsDelayed, value as string);
+        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.effectiveInterestRate, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.effectiveInterestRate, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, parseInt(value as string), inv.monthsDelayed, inv.color);
+        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, inv.years, parseInt(value as string), inv.color);
+        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, inv.years, inv.monthsDelayed, value as string);
         return inv;
       }
       return inv;
@@ -240,14 +237,6 @@ function App() {
     '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
     '#393b79', '#637939', '#8c6d31', '#843c39', '#7b4173', '#5254a3', '#9c9ede', '#cedb9c', '#e7ba52', '#ad494a', '#a55194',
     '#6b6ecf', '#b5cf6b', '#bd9e39', '#bd9e39', '#ce6dbd', '#de9ed6', '#393b79', '#637939', '#8c6d31', '#843c39',
-  ];
-  // Define a separate color palette for loans
-  const loanColors = [
-    '#d62728', // red
-    '#9467bd', // violet
-    '#8c564b', // brown
-    '#e377c2', // pink
-    '#7f7f7f', // gray
   ];
 
   return (
@@ -283,7 +272,7 @@ function App() {
         {investmentType === 'Loan' && (
           <>
             <input name="principal" placeholder="Principal" type="number" value={form.principal} onChange={handleFormChange} step="any" required />{' '}
-            <input name="nominalInterestRate" placeholder="Nominal Interest Rate (%)" type="number" value={form.nominalInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
+            <input name="effectiveInterestRate" placeholder="Effective Interest Rate (%)" type="number" value={form.effectiveInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
             <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />{' '}
             <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />{' '}
             <input name="color" type="color" value={form.color || '#ff7300'} onChange={handleFormChange} style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }} title="Pick a color" />
@@ -449,7 +438,7 @@ function App() {
                 <b>Loan:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                 <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.nominalInterestRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'nominalInterestRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.effectiveInterestRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                 <div style={{ marginLeft: 16, color: '#555' }}>
@@ -457,7 +446,8 @@ function App() {
                     inv.calculateMonthlyPayment(
                       inv.years,
                       inv.monthsDelayed
-                    ).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                    ).toLocaleString(
+                      undefined, { maximumFractionDigits: 2 })
                   }
                 </div>
                 <input

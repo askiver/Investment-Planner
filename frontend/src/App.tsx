@@ -9,24 +9,60 @@ import type { MonthlyPlan } from './financeLogic';
 type InvestmentType = 'Property' | 'Stock' | 'Loan';
 type Investment = Property | Stock | Loan;
 
+// Norwegian defaults for each investment type
+type RateType = 'nominal' | 'effective';
+
+const norwegianDefaults = {
+  Property: {
+    name: 'Standard Apartment',
+    initialValue: '4000000',
+    expectedReturn: '3', // percent
+    taxRate: '22',      // percent
+    principal: '',
+    effectiveInterestRate: '',
+    years: '',
+    monthlyInvestment: '',
+    monthsDelayed: '',
+    color: '#1f77b4',
+    rateType: 'effective',
+  },
+  Stock: {
+    name: 'Index Fund',
+    initialValue: '100000',
+    expectedReturn: '7', // percent
+    taxRate: '22',      // percent
+    principal: '',
+    effectiveInterestRate: '',
+    years: '',
+    monthlyInvestment: '',
+    monthsDelayed: '',
+    color: '#2ca02c',
+    rateType: 'effective',
+  },
+  Loan: {
+    name: 'Mortgage',
+    initialValue: '',
+    expectedReturn: '',
+    taxRate: '',
+    principal: '3000000',
+    effectiveInterestRate: '5', // percent
+    years: '25',
+    monthlyInvestment: '',
+    monthsDelayed: '0',
+    color: '#d62728',
+    rateType: 'effective',
+  },
+};
+
 function App() {
   const [investmentType, setInvestmentType] = useState<InvestmentType>('Property');
   const [investments, setInvestments] = useState<Array<Property | Stock | Loan>>([]);
   const [timelineMonths, setTimelineMonths] = useState(12);
-  const [income, setIncome] = useState('');
+  const [income, setIncome] = useState('10000');
 
   // Form state
   const [form, setForm] = useState<any>({
-    name: '',
-    initialValue: '',
-    expectedReturn: '', // as percent
-    taxRate: '',        // as percent
-    principal: '',
-    effectiveInterestRate: '', // as percent
-    years: '',
-    monthlyInvestment: '', // for stocks
-    monthsDelayed: '', // for loans
-    color: '', // color for investment
+    ...norwegianDefaults[investmentType]
   });
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -39,25 +75,18 @@ function App() {
       setForm({ ...form, color: value });
     } else if (name === 'effectiveInterestRate') {
       setForm({ ...form, effectiveInterestRate: value });
+    } else if (name === 'rateType') {
+      setForm({ ...form, rateType: value });
     } else {
       setForm({ ...form, [name]: value });
     }
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setInvestmentType(e.target.value as InvestmentType);
+    const newType = e.target.value as InvestmentType;
+    setInvestmentType(newType);
     setForm({
-      name: '',
-      initialValue: '',
-      expectedReturn: '',
-      taxRate: '',
-      location: '',
-      principal: '',
-      effectiveInterestRate: '',
-      years: '',
-      monthlyInvestment: '',
-      monthsDelayed: '',
-      color: '',
+      ...norwegianDefaults[newType]
     });
   };
 
@@ -67,12 +96,14 @@ function App() {
     const id = crypto.randomUUID();
     // Assign a random color if none selected
     const color = form.color || expandedColors[Math.floor(Math.random() * expandedColors.length)];
+    const isEffective = form.rateType === 'effective';
     if (investmentType === 'Property') {
       newInvestment = new Property(
         id,
         form.name,
         parseFloat(form.initialValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
+        isEffective,
         parseFloat(form.taxRate) / 100,        // convert percent to decimal
         color
       );
@@ -82,6 +113,7 @@ function App() {
         form.name,
         parseFloat(form.initialValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
+        isEffective,
         parseFloat(form.taxRate) / 100,        // convert percent to decimal
         color
       );
@@ -91,6 +123,7 @@ function App() {
         form.name,
         parseFloat(form.principal),
         parseFloat(form.effectiveInterestRate) / 100, // convert percent to decimal
+        isEffective,
         parseInt(form.years),
         parseInt(form.monthsDelayed || '0'),
         color
@@ -99,16 +132,7 @@ function App() {
     if (newInvestment) {
       setInvestments(prev => [...prev, newInvestment]);
       setForm({
-        name: '',
-        initialValue: '',
-        expectedReturn: '',
-        taxRate: '',
-        principal: '',
-        effectiveInterestRate: '',
-        years: '',
-        monthlyInvestment: '',
-        monthsDelayed: '', // always reset as string
-        color: '',
+        ...norwegianDefaults[investmentType]
       });
     }
   };
@@ -204,28 +228,31 @@ function App() {
       if (inv.id !== id) return inv;
       // For each type, update the relevant fields
       if (inv instanceof Property) {
-        if (field === 'name') return new Property(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate, inv.color);
-        if (field === 'initialValue') return new Property(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate, inv.color);
-        if (field === 'expectedReturn') return new Property(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate, inv.color);
-        if (field === 'taxRate') return new Property(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100, inv.color);
-        if (field === 'color') return new Property(id, inv.name, inv.initialValue, inv.yearlyIncrease, inv.taxRate, value as string);
+        if (field === 'name') return new Property(id, value as string, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'initialValue') return new Property(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'expectedReturn') return new Property(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'taxRate') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
+        if (field === 'color') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
+        if (field === 'rateType') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
         return inv;
       }
       if (inv instanceof Stock) {
-        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyIncrease, inv.taxRate, inv.color);
-        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyIncrease, inv.taxRate, inv.color);
-        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.taxRate, inv.color);
-        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, parseFloat(value as string) / 100, inv.color);
-        if (field === 'color') return new Stock(id, inv.name, inv.initialValue, inv.yearlyIncrease, inv.taxRate, value as string);
+        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
+        if (field === 'color') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
+        if (field === 'rateType') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
         return inv;
       }
       if (inv instanceof Loan) {
-        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.effectiveInterestRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.effectiveInterestRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, parseInt(value as string), inv.monthsDelayed, inv.color);
-        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, inv.years, parseInt(value as string), inv.color);
-        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.effectiveInterestRate, inv.years, inv.monthsDelayed, value as string);
+        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.monthsDelayed, inv.color);
+        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.color);
+        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, value as string);
+        if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.monthsDelayed, inv.color);
         return inv;
       }
       return inv;
@@ -277,6 +304,29 @@ function App() {
             <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />{' '}
             <input name="color" type="color" value={form.color || '#ff7300'} onChange={handleFormChange} style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }} title="Pick a color" />
           </>
+        )}
+        {(investmentType === 'Property' || investmentType === 'Stock' || investmentType === 'Loan') && (
+          <div style={{ display: 'inline-block', marginLeft: 8, marginRight: 8 }}>
+            <label style={{ marginRight: 4 }}>Rate type:</label>
+            <label>
+              <input
+                type="radio"
+                name="rateType"
+                value="nominal"
+                checked={form.rateType === 'nominal'}
+                onChange={handleFormChange}
+              /> Nominal
+            </label>
+            <label style={{ marginLeft: 8 }}>
+              <input
+                type="radio"
+                name="rateType"
+                value="effective"
+                checked={form.rateType === 'effective'}
+                onChange={handleFormChange}
+              /> Effective
+            </label>
+          </div>
         )}
         <button type="submit">Add</button>
       </form>
@@ -404,8 +454,29 @@ function App() {
                 <b>Property:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                 <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyIncrease * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                <span style={{ marginLeft: 8 }}>
+                  <label style={{ marginRight: 4 }}>Rate type:</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="nominal"
+                      checked={inv.effectiveRate === false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                    /> Nominal
+                  </label>
+                  <label style={{ marginLeft: 8 }}>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="effective"
+                      checked={inv.effectiveRate !== false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                    /> Effective
+                  </label>
+                </span>
                 <input
                   name="color"
                   type="color"
@@ -421,8 +492,29 @@ function App() {
                 <b>Stock:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                 <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyIncrease * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                <span style={{ marginLeft: 8 }}>
+                  <label style={{ marginRight: 4 }}>Rate type:</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="nominal"
+                      checked={inv.effectiveRate === false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                    /> Nominal
+                  </label>
+                  <label style={{ marginLeft: 8 }}>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="effective"
+                      checked={inv.effectiveRate !== false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                    /> Effective
+                  </label>
+                </span>
                 <input
                   name="color"
                   type="color"
@@ -438,7 +530,28 @@ function App() {
                 <b>Loan:</b>
                 <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                 <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.effectiveInterestRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
+                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
+                <span style={{ marginLeft: 8 }}>
+                  <label style={{ marginRight: 4 }}>Rate type:</label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="nominal"
+                      checked={inv.effectiveRate === false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                    /> Nominal
+                  </label>
+                  <label style={{ marginLeft: 8 }}>
+                    <input
+                      type="radio"
+                      name="rateType"
+                      value="effective"
+                      checked={inv.effectiveRate !== false}
+                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                    /> Effective
+                  </label>
+                </span>
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                 <div style={{ marginLeft: 16, color: '#555' }}>
@@ -449,6 +562,15 @@ function App() {
                     ).toLocaleString(
                       undefined, { maximumFractionDigits: 2 })
                   }
+                  {/* Show total loan cost if available in plan */}
+                  {(() => {
+                    const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                    return planLoan ? (
+                      <span style={{ marginLeft: 16 }}>
+                        Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <input
                   name="color"

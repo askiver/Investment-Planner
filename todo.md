@@ -8,3 +8,8 @@
 - Add some standard inputs with regard to normal norwegian laws so entering information about investments goes faster.
 - Display information regarding principal rate payments for loans more clearly (Perhaps in the graph tooltip?)
 - Add a type for a general asset (no preinput of information)
+- Add a visualization to differentiate between principal and rate payments for loans
+- Add a year parameter to timeline so it gets more managable to use
+- Disallow the addition of loans if the monthly income is lower than the monthly cost
+- Add option to divide remaining monthly income between several different stocks/assets
+- Add inflation parameter to adjust income over the years

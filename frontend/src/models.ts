@@ -7,25 +7,36 @@ export interface LoanSchedule {
   interestPaid:  number[];   // out-going interest  "
 }
 
+function calculateMonthlyIncrease(yearlyRate: number, effectiveRate: boolean): number {
+  if (effectiveRate) {
+    return Math.pow(1 + yearlyRate, 1/12) - 1;
+  }
+  else {
+    return yearlyRate/12
+  }
+}
+
 export abstract class Asset {
   id: string;
   name: string;
   initialValue: number;
   currentValue: number;
-  yearlyIncrease: number; // e.g., 0.07 for 7%
+  yearlyRate: number; // e.g., 0.07 for 7%
   monthlyIncrease: number; // e.g., 0.05 for 5%
   taxRate: number;        // e.g., 0.22 for 22%
   color: string;
+  effectiveRate: boolean;
 
-  constructor(id: string, name: string, initialValue: number, yearlyIncrease: number, taxRate: number, color: string) {
+  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
     this.id = id;
     this.name = name;
     this.initialValue = initialValue;
     this.currentValue = initialValue;
-    this.yearlyIncrease = yearlyIncrease;
-    this.monthlyIncrease = Math.pow(1 + yearlyIncrease, 1/12) - 1;
+    this.yearlyRate = yearlyRate;
+    this.monthlyIncrease = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.taxRate = taxRate;
     this.color = color;
+    this.effectiveRate = effectiveRate;
   }
 
   // Method for calculating the value of the asset after n months
@@ -51,15 +62,17 @@ export abstract class Asset {
 }
 
 export class Property extends Asset {
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, color: string) {
-    super(id, name, initialValue, expectedReturn, taxRate, color);
+  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+    super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
+    this.effectiveRate = effectiveRate;
   }
 }
 
 export class Stock extends Asset {
 
-  constructor(id: string, name: string, initialValue: number, expectedReturn: number, taxRate: number, color: string) {
-    super(id, name, initialValue, expectedReturn, taxRate, color);
+  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+    super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
+    this.effectiveRate = effectiveRate;
   }
 }
 
@@ -67,21 +80,23 @@ export class Loan {
   id: string;
   name: string;
   principal: number;
-  effectiveInterestRate: number; // e.g., 0.05 for 5%
+  yearlyRate: number; // e.g., 0.05 for 5%
   monthlyInterestRate: number; // e.g., 0.05 for 5%
   years: number;
   monthsDelayed: number;
   color: string;
+  effectiveRate: boolean;
 
-  constructor(id: string, name: string, principal: number, effectiveInterestRate: number, years: number, monthsDelayed: number = 0, color: string) {
+  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, monthsDelayed: number = 0, color: string) {
     this.id = id;
     this.name = name;
     this.principal = principal;
-    this.effectiveInterestRate = effectiveInterestRate;
-    this.monthlyInterestRate = Math.pow(1 + effectiveInterestRate, 1/12) - 1;
+    this.yearlyRate = yearlyRate;
+    this.monthlyInterestRate = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.years = years;
     this.monthsDelayed = monthsDelayed;
     this.color = color;
+    this.effectiveRate = effectiveRate;
   }
 
   calculateMonthlyPayment(years: number, monthsDelayed: number, raisedPrincipal?: number): number {

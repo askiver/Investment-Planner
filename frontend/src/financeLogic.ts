@@ -1,4 +1,4 @@
-import { Loan, Stock, Property } from './models';
+import { Loan, type LoanSchedule, Stock, Property } from './models';
 
 export interface MonthlyPlan {
   loans: LoanPaymentPlan[]; // payment per loan
@@ -9,6 +9,7 @@ export interface MonthlyPlan {
 export interface LoanPaymentPlan {
   loanName: string,
   monthlyCost: number,
+  totalCost: number,
   principals: number[],
   ratePayments: number[],
 }
@@ -17,6 +18,13 @@ export interface AssetPaymentPlan {
   assetName: string,
   totalValues: number[],
   taxedValues: number[],
+}
+
+function totalLoanCost(sch: LoanSchedule): number {
+  const principalSum = sch.principalPaid.reduce((a, v) => a + v, 0);
+  const interestSum  = sch.interestPaid .reduce((a, v) => a + v, 0);
+  return principalSum + interestSum;
+  // mathematically identical to: monthlyPayment * numberOfPayments
 }
 
 /**
@@ -59,6 +67,7 @@ export function calculateMonthlyPlan(
     plans.loans.push({
       loanName:   loan.name,
       monthlyCost: 0,                 // kept only for UI – not used in math
+      totalCost: totalLoanCost(sch),
       principals: sch.balances,
       ratePayments: sch.interestPaid,
     });

@@ -59,6 +59,7 @@ function App() {
   const [investments, setInvestments] = useState<Array<Property | Stock | Loan>>([]);
   const [timelineMonths, setTimelineMonths] = useState(12);
   const [income, setIncome] = useState('10000');
+  const [inflation, setInflation] = useState('2.5');
 
   // Form state
   const [form, setForm] = useState<any>({
@@ -148,7 +149,8 @@ function App() {
     loans,
     stocks,
     properties,
-    timelineMonths
+    timelineMonths,
+    parseFloat(inflation) / 100 || 0
   );
 
   // Prepare data for stacked area chart (pre-tax and after-tax)
@@ -354,6 +356,17 @@ function App() {
             min={0}
           />
         </label>
+        <label style={{ marginLeft: 24 }}>
+          Yearly Inflation (%):
+          <input
+          type="number"
+          step="any"
+          min="0"
+          value={inflation}
+          onChange={e => setInflation(e.target.value)}
+          style={{ marginLeft: 8, width: 80 }}
+    />
+  </label>
       </div>
       <h2>Portfolio Value Over Time (No Tax)</h2>
       <ResponsiveContainer width="100%" height={300}>
@@ -556,10 +569,7 @@ function App() {
                 <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                 <div style={{ marginLeft: 16, color: '#555' }}>
                   Monthly Payment: ${
-                    inv.calculateMonthlyPayment(
-                      inv.years,
-                      inv.monthsDelayed
-                    ).toLocaleString(
+                    inv.monthlyPayment.toLocaleString(
                       undefined, { maximumFractionDigits: 2 })
                   }
                   {/* Show total loan cost if available in plan */}

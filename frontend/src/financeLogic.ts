@@ -41,6 +41,7 @@ export function calculateMonthlyPlan(
   stocks: Stock[],
   properties: Property[],
   months: number,
+  yearlyInflation: number,
 ): MonthlyPlan {
 
   /* --------------- PASS 0: overall timeline length --------------- */
@@ -74,9 +75,14 @@ export function calculateMonthlyPlan(
   });
 
   /* --------------- PASS 2: build investable income --------------- */
+
+  const yearlyIncomes = Array.from({ length: totalMonths }, (_, m) =>
+    // yearly bump → floor(m / 12)
+    income * (1 + yearlyInflation) ** Math.floor(m / 12));
+
   const TAX_RATE = 0.22;
   const investable = interestOut.map((intPaid, i) =>
-    income                      // salary
+    yearlyIncomes[i]                      // salary
     - (principalOut[i] + intPaid) // cash actually sent to lender
     + intPaid * TAX_RATE          // tax shield only on PAID interest
   );

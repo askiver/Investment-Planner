@@ -12,4 +12,3 @@
 - Add a year parameter to timeline so it gets more managable to use
 - Disallow the addition of loans if the monthly income is lower than the monthly cost
 - Add option to divide remaining monthly income between several different stocks/assets
-- Add inflation parameter to adjust income over the years

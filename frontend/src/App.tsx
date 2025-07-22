@@ -158,7 +158,7 @@ function App() {
     const data: any[] = [];
     const maxMonths = timelineMonths + 1;
     // Track which loans are still active for each month
-    let activeLoanKeys: Set<string> = new Set(plan.loans.map(l => l.loanName));
+    const activeLoanKeys: Set<string> = new Set(plan.loans.map(l => l.loanName));
     for (let m = 0; m < maxMonths; m++) {
       const entry: any = { month: m };
       let runningTotal = 0;
@@ -269,332 +269,433 @@ function App() {
   ];
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-      <h1>Investment Planner</h1>
-      <h2>Add Investment</h2>
-      <form onSubmit={handleFormSubmit} style={{ marginBottom: 20 }}>
-        <label>
-          Type:
-          <select name="type" value={investmentType} onChange={handleTypeChange}>
-            <option value="Property">Property</option>
-            <option value="Stock">Stock</option>
-            <option value="Loan">Loan</option>
-          </select>
-        </label>
-        <input name="name" placeholder="Name" value={form.name} onChange={handleFormChange} required />{' '}
-        {investmentType === 'Property' && (
-          <>
-            <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />{' '}
-            <input name="expectedReturn" placeholder="Yearly Increase (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="color" type="color" value={form.color || '#8884d8'} onChange={handleFormChange} style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }} title="Pick a color" />
-          </>
-        )}
-        {investmentType === 'Stock' && (
-          <>
-            <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />{' '}
-            <input name="expectedReturn" placeholder="Yearly Increase (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="color" type="color" value={form.color || '#82ca9d'} onChange={handleFormChange} style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }} title="Pick a color" />
-          </>
-        )}
-        {investmentType === 'Loan' && (
-          <>
-            <input name="principal" placeholder="Principal" type="number" value={form.principal} onChange={handleFormChange} step="any" required />{' '}
-            <input name="effectiveInterestRate" placeholder="Effective Interest Rate (%)" type="number" value={form.effectiveInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />{' '}
-            <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />{' '}
-            <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />{' '}
-            <input name="color" type="color" value={form.color || '#ff7300'} onChange={handleFormChange} style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }} title="Pick a color" />
-          </>
-        )}
-        {(investmentType === 'Property' || investmentType === 'Stock' || investmentType === 'Loan') && (
-          <div style={{ display: 'inline-block', marginLeft: 8, marginRight: 8 }}>
-            <label style={{ marginRight: 4 }}>Rate type:</label>
-            <label>
-              <input
-                type="radio"
-                name="rateType"
-                value="nominal"
-                checked={form.rateType === 'nominal'}
-                onChange={handleFormChange}
-              /> Nominal
-            </label>
-            <label style={{ marginLeft: 8 }}>
-              <input
-                type="radio"
-                name="rateType"
-                value="effective"
-                checked={form.rateType === 'effective'}
-                onChange={handleFormChange}
-              /> Effective
-            </label>
-          </div>
-        )}
-        <button type="submit">Add</button>
-      </form>
-      <div style={{ margin: '20px 0' }}>
-        <label>
-          Timeline (months):
-          <input
-            type="number"
-            min={1}
-            max={600}
-            value={timelineMonths}
-            onChange={e => setTimelineMonths(Number(e.target.value))}
-            style={{ width: 80, marginLeft: 8 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 16 }}>
-        <label>
-          Monthly Income:
-          <input
-            type="number"
-            value={income}
-            onChange={e => setIncome(e.target.value)}
-            style={{ marginLeft: 8, width: 120 }}
-            min={0}
-          />
-        </label>
-        <label style={{ marginLeft: 24 }}>
-          Yearly Inflation (%):
-          <input
-          type="number"
-          step="any"
-          min="0"
-          value={inflation}
-          onChange={e => setInflation(e.target.value)}
-          style={{ marginLeft: 8, width: 80 }}
-    />
-  </label>
-      </div>
-      <h2>Portfolio Value Over Time (No Tax)</h2>
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-          <XAxis dataKey="month" 
-                 tickFormatter={value => (value / 12).toFixed(0)}
-                 interval={11}
-                 label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
-           />
-          <YAxis width={90} tickFormatter={value => value.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
-          <Tooltip content={CustomTooltip} />
-          <Legend />
-          {assetKeys.map((key, idx) => {
-            // Find the investment by name to get its color
-            const inv = investments.find(i => i.name === key);
-            const color = inv && inv.color ? inv.color : expandedColors[idx % expandedColors.length];
-            return (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stackId="1"
-                stroke={color}
-                fill={color}
-                isAnimationActive={false}
-              />
-            );
-          })}
-          {loanKeys.map((key, idx) => {
-            // Find the investment by name to get its color
-            const inv = investments.find(i => i.name === key);
-            const color = inv && inv.color ? inv.color : expandedColors[(idx + 10) % expandedColors.length];
-            return (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stackId="loans"
-                stroke={color}
-                fill={color}
-                isAnimationActive={false}
-              />
-            );
-          })}
-        </AreaChart>
-      </ResponsiveContainer>
-      <h2>Portfolio Value Over Time (With Tax)</h2>
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartDataWithTax} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-          <XAxis dataKey="month" 
-                 tickFormatter={value => (value / 12).toFixed(0)}
-                 interval={11}
-                 label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
-           />
-          <YAxis width={90} tickFormatter={value => value.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
-          <Tooltip content={CustomTooltip} />
-          <Legend />
-          {assetKeysWithTax.map((key, idx) => {
-            // Find the investment by name to get its color
-            const inv = investments.find(i => i.name === key);
-            const color = inv && inv.color ? inv.color : expandedColors[idx % expandedColors.length];
-            return (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stackId="1"
-                stroke={color}
-                fill={color}
-                isAnimationActive={false}
-              />
-            );
-          })}
-          {loanKeysWithTax.map((key, idx) => {
-            // Find the investment by name to get its color
-            const inv = investments.find(i => i.name === key);
-            const color = inv && inv.color ? inv.color : expandedColors[(idx + 10) % expandedColors.length];
-            return (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stackId="loans"
-                stroke={color}
-                fill={color}
-                isAnimationActive={false}
-              />
-            );
-          })}
-        </AreaChart>
-      </ResponsiveContainer>
-      <h2>Investments</h2>
-      <ul>
-        {investments.map((inv) => (
-          <li key={inv.id} style={{ marginBottom: 12 }}>
-            {inv instanceof Property && (
+    <div className="app-background">
+      <header className="app-header">
+        <img src="/vite.svg" alt="Logo" className="app-logo" />
+        <h1>Investment Planner</h1>
+        <p className="app-subtitle">Plan, visualize, and compare your investments and loans</p>
+      </header>
+      <main className="main-content">
+        <section className="card form-container">
+          <h2>Add Investment</h2>
+          <form onSubmit={handleFormSubmit} className="investment-form" style={{ marginBottom: 20 }}>
+            <div className="form-group">
+              <label>Type:</label>
+              <select name="type" value={investmentType} onChange={handleTypeChange}>
+                <option value="Property">Property</option>
+                <option value="Stock">Stock</option>
+                <option value="Loan">Loan</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Name:</label>
+              <input name="name" placeholder="Name" value={form.name} onChange={handleFormChange} required />
+            </div>
+            {investmentType === 'Property' && (
               <>
-                <b>Property:</b>
-                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
-                <span style={{ marginLeft: 8 }}>
-                  <label style={{ marginRight: 4 }}>Rate type:</label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="nominal"
-                      checked={inv.effectiveRate === false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
-                    /> Nominal
-                  </label>
-                  <label style={{ marginLeft: 8 }}>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="effective"
-                      checked={inv.effectiveRate !== false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
-                    /> Effective
-                  </label>
-                </span>
-                <input
-                  name="color"
-                  type="color"
-                  value={inv.color}
-                  onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
-                  style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
-                  title="Edit color"
-                />
-              </>
-            )}
-            {inv instanceof Stock && (
-              <>
-                <b>Stock:</b>
-                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
-                <span style={{ marginLeft: 8 }}>
-                  <label style={{ marginRight: 4 }}>Rate type:</label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="nominal"
-                      checked={inv.effectiveRate === false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
-                    /> Nominal
-                  </label>
-                  <label style={{ marginLeft: 8 }}>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="effective"
-                      checked={inv.effectiveRate !== false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
-                    /> Effective
-                  </label>
-                </span>
-                <input
-                  name="color"
-                  type="color"
-                  value={inv.color}
-                  onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
-                  style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
-                  title="Edit color"
-                />
-              </>
-            )}
-            {inv instanceof Loan && (
-              <>
-                <b>Loan:</b>
-                <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
-                <span style={{ marginLeft: 8 }}>
-                  <label style={{ marginRight: 4 }}>Rate type:</label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="nominal"
-                      checked={inv.effectiveRate === false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
-                    /> Nominal
-                  </label>
-                  <label style={{ marginLeft: 8 }}>
-                    <input
-                      type="radio"
-                      name="rateType"
-                      value="effective"
-                      checked={inv.effectiveRate !== false}
-                      onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
-                    /> Effective
-                  </label>
-                </span>
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
-                <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
-                <div style={{ marginLeft: 16, color: '#555' }}>
-                  Monthly Payment: ${
-                    inv.monthlyPayment.toLocaleString(
-                      undefined, { maximumFractionDigits: 2 })
-                  }
-                  {/* Show total loan cost if available in plan */}
-                  {(() => {
-                    const planLoan = plan.loans.find(l => l.loanName === inv.name);
-                    return planLoan ? (
-                      <span style={{ marginLeft: 16 }}>
-                        Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </span>
-                    ) : null;
-                  })()}
+                <div className="form-group">
+                  <label>Initial Value:</label>
+                  <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />
                 </div>
-                <input
-                  name="color"
-                  type="color"
-                  value={inv.color}
-                  onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
-                  style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
-                  title="Edit color"
-                />
+                <div className="form-group">
+                  <label>Tax Rate (%):</label>
+                  <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Yearly Rate (%):</label>
+                  <input name="expectedReturn" placeholder="Yearly Rate (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Rate type:</label>
+                  <div className="rate-type-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="nominal"
+                        checked={form.rateType === 'nominal'}
+                        onChange={handleFormChange}
+                      /> Nominal
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="effective"
+                        checked={form.rateType === 'effective'}
+                        onChange={handleFormChange}
+                      /> Effective
+                    </label>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Color:</label>
+                  <input name="color" type="color" value={form.color || '#8884d8'} onChange={handleFormChange} style={{ width: 40, height: 30 }} title="Pick a color" />
+                </div>
               </>
             )}
-          </li>
-        ))}
-      </ul>
+            {investmentType === 'Stock' && (
+              <>
+                <div className="form-group">
+                  <label>Initial Value:</label>
+                  <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />
+                </div>
+                <div className="form-group">
+                  <label>Tax Rate (%):</label>
+                  <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Yearly Rate (%):</label>
+                  <input name="expectedReturn" placeholder="Yearly Rate (%)" type="number" value={form.expectedReturn} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Rate type:</label>
+                  <div className="rate-type-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="nominal"
+                        checked={form.rateType === 'nominal'}
+                        onChange={handleFormChange}
+                      /> Nominal
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="effective"
+                        checked={form.rateType === 'effective'}
+                        onChange={handleFormChange}
+                      /> Effective
+                    </label>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Color:</label>
+                  <input name="color" type="color" value={form.color || '#82ca9d'} onChange={handleFormChange} style={{ width: 40, height: 30 }} title="Pick a color" />
+                </div>
+              </>
+            )}
+            {investmentType === 'Loan' && (
+              <>
+                <div className="form-group">
+                  <label>Principal:</label>
+                  <input name="principal" placeholder="Principal" type="number" value={form.principal} onChange={handleFormChange} step="any" required />
+                </div>
+                <div className="form-group">
+                  <label>Years:</label>
+                  <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />
+                </div>
+                <div className="form-group">
+                  <label>Delayed Months:</label>
+                  <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />
+                </div>
+                <div className="form-group">
+                  <label>Interest Rate (%):</label>
+                  <input name="effectiveInterestRate" placeholder="Interest Rate (%)" type="number" value={form.effectiveInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Rate type:</label>
+                  <div className="rate-type-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="nominal"
+                        checked={form.rateType === 'nominal'}
+                        onChange={handleFormChange}
+                      /> Nominal
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="rateType"
+                        value="effective"
+                        checked={form.rateType === 'effective'}
+                        onChange={handleFormChange}
+                      /> Effective
+                    </label>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Color:</label>
+                  <input name="color" type="color" value={form.color || '#ff7300'} onChange={handleFormChange} style={{ width: 40, height: 30 }} title="Pick a color" />
+                </div>
+              </>
+            )}
+            <button type="submit" className="submit-button">Add</button>
+          </form>
+        </section>
+        <section className="card settings-container">
+          <h2>Portfolio Settings</h2>
+          <div className="settings-form">
+            <div className="form-group">
+              <label>Timeline (months):</label>
+              <input
+                type="number"
+                min={1}
+                max={600}
+                value={timelineMonths}
+                onChange={e => setTimelineMonths(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-group">
+              <label>Monthly Income:</label>
+              <input
+                type="number"
+                value={income}
+                onChange={e => setIncome(e.target.value)}
+                min={0}
+              />
+            </div>
+            <div className="form-group">
+              <label>Yearly Inflation (%):</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={inflation}
+                onChange={e => setInflation(e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+        <section className="card chart-section">
+          <h2>Portfolio Value Over Time (No Tax)</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <XAxis dataKey="month"
+                     tickFormatter={value => (value / 12).toFixed(0)}
+                     interval={11}
+                     label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
+               />
+              <YAxis width={90} tickFormatter={value => value.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
+              <Tooltip content={CustomTooltip} />
+              <Legend />
+              {assetKeys.map((key, idx) => {
+                // Find the investment by name to get its color
+                const inv = investments.find(i => i.name === key);
+                const color = inv && inv.color ? inv.color : expandedColors[idx % expandedColors.length];
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    stackId="1"
+                    stroke={color}
+                    fill={color}
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+              {loanKeys.map((key, idx) => {
+                // Find the investment by name to get its color
+                const inv = investments.find(i => i.name === key);
+                const color = inv && inv.color ? inv.color : expandedColors[(idx + 10) % expandedColors.length];
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    stackId="loans"
+                    stroke={color}
+                    fill={color}
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+            </AreaChart>
+          </ResponsiveContainer>
+          <h2>Portfolio Value Over Time (With Tax)</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={chartDataWithTax} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <XAxis dataKey="month"
+                     tickFormatter={value => (value / 12).toFixed(0)}
+                     interval={11}
+                     label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
+               />
+              <YAxis width={90} tickFormatter={value => value.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
+              <Tooltip content={CustomTooltip} />
+              <Legend />
+              {assetKeysWithTax.map((key, idx) => {
+                // Find the investment by name to get its color
+                const inv = investments.find(i => i.name === key);
+                const color = inv && inv.color ? inv.color : expandedColors[idx % expandedColors.length];
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    stackId="1"
+                    stroke={color}
+                    fill={color}
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+              {loanKeysWithTax.map((key, idx) => {
+                // Find the investment by name to get its color
+                const inv = investments.find(i => i.name === key);
+                const color = inv && inv.color ? inv.color : expandedColors[(idx + 10) % expandedColors.length];
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    stackId="loans"
+                    stroke={color}
+                    fill={color}
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+            </AreaChart>
+          </ResponsiveContainer>
+        </section>
+        <section className="card investments-section">
+          <h2>Investments</h2>
+          <ul>
+            {investments.map((inv) => (
+              <li key={inv.id} style={{ marginBottom: 12 }}>
+                {inv instanceof Property && (
+                  <>
+                    <b>Property:</b>
+                    <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                    <span style={{ marginLeft: 8 }}>
+                      <label style={{ marginRight: 4 }}>Rate type:</label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="nominal"
+                          checked={inv.effectiveRate === false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                        /> Nominal
+                      </label>
+                      <label style={{ marginLeft: 8 }}>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="effective"
+                          checked={inv.effectiveRate !== false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                        /> Effective
+                      </label>
+                    </span>
+                    <input
+                      name="color"
+                      type="color"
+                      value={inv.color}
+                      onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
+                      style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
+                      title="Edit color"
+                    />
+                  </>
+                )}
+                {inv instanceof Stock && (
+                  <>
+                    <b>Stock:</b>
+                    <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
+                    <span style={{ marginLeft: 8 }}>
+                      <label style={{ marginRight: 4 }}>Rate type:</label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="nominal"
+                          checked={inv.effectiveRate === false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                        /> Nominal
+                      </label>
+                      <label style={{ marginLeft: 8 }}>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="effective"
+                          checked={inv.effectiveRate !== false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                        /> Effective
+                      </label>
+                    </span>
+                    <input
+                      name="color"
+                      type="color"
+                      value={inv.color}
+                      onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
+                      style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
+                      title="Edit color"
+                    />
+                  </>
+                )}
+                {inv instanceof Loan && (
+                  <>
+                    <b>Loan:</b>
+                    <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
+                    <span style={{ marginLeft: 8 }}>
+                      <label style={{ marginRight: 4 }}>Rate type:</label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="nominal"
+                          checked={inv.effectiveRate === false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                        /> Nominal
+                      </label>
+                      <label style={{ marginLeft: 8 }}>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="effective"
+                          checked={inv.effectiveRate !== false}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                        /> Effective
+                      </label>
+                    </span>
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
+                    <div style={{ marginLeft: 16, color: '#555' }}>
+                      Monthly Payment: ${
+                        inv.monthlyPayment.toLocaleString(
+                          undefined, { maximumFractionDigits: 2 })
+                    }
+                    {/* Show total loan cost if available in plan */}
+                    {(() => {
+                      const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                      return planLoan ? (
+                        <span style={{ marginLeft: 16 }}>
+                          Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </span>
+                      ) : null;
+                    })()}
+                    </div>
+                    <input
+                      name="color"
+                      type="color"
+                      value={inv.color}
+                      onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
+                      style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
+                      title="Edit color"
+                    />
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
+      <footer className="app-footer">
+        <p>Investment Planner &copy; 2025. Made with React and Recharts.</p>
+      </footer>
     </div>
   )
 }

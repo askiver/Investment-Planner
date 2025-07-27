@@ -12,3 +12,5 @@
 - Add a year parameter to timeline so it gets more managable to use
 - Disallow the addition of loans if the monthly income is lower than the monthly cost
 - Add option to divide remaining monthly income between several different stocks/assets
+- Add option of different compound/interest accrual frequencies (daily, monthly, etc)
+- Add option for adding large single-time purchases (cars for example) and whether these use stock sales to gather the money

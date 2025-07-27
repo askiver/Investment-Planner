@@ -8,12 +8,8 @@ export interface LoanSchedule {
 }
 
 function calculateMonthlyIncrease(yearlyRate: number, effectiveRate: boolean): number {
-  if (effectiveRate) {
-    return Math.pow(1 + yearlyRate, 1/12) - 1;
-  }
-  else {
-    return yearlyRate/12
-  }
+  if (effectiveRate) return Math.pow(1 + yearlyRate, 1/12) - 1;
+  else return yearlyRate/12;
 }
 
 export abstract class Asset {
@@ -64,7 +60,6 @@ export abstract class Asset {
 export class Property extends Asset {
   constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
     super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
-    this.effectiveRate = effectiveRate;
   }
 }
 
@@ -72,7 +67,6 @@ export class Stock extends Asset {
 
   constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
     super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
-    this.effectiveRate = effectiveRate;
   }
 }
 
@@ -83,34 +77,30 @@ export class Loan {
   yearlyRate: number; // e.g., 0.05 for 5%
   private readonly monthlyInterestRate: number; // e.g., 0.05 for 5%
   monthlyPayment: number;
-  principals!: number[];
-  ratePayments!: number[];
   years: number;
+  months: number; // Add this property
+  totalMonths: number;
   monthsDelayed: number;
   color: string;
   effectiveRate: boolean;
 
-  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, monthsDelayed: number = 0, color: string) {
+  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, color: string) {
     this.id = id;
     this.name = name;
     this.principal = principal;
     this.yearlyRate = yearlyRate;
     this.years = years;
+    this.months = months; // Initialize months
+    this.totalMonths = years * 12 + months;
     this.monthsDelayed = monthsDelayed;
     this.monthlyInterestRate = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.monthlyPayment = this.calculateMonthlyPayment();
-    const [principals, ratepayments] = this.loanValue();
-    this.principals = principals;
-    this.ratePayments = ratepayments;
     this.color = color;
     this.effectiveRate = effectiveRate;
-
-    this.calculateMonthlyPayment()
   }
 
   calculateMonthlyPayment(): number {
-
-    let balance = this.principal
+    let balance = this.principal;
     let interestPayment = 0;
 
     // Find new balance if loan is delayed
@@ -119,38 +109,10 @@ export class Loan {
       balance += interestPayment;
     }
 
-    const months = this.years * 12;
+    const months = this.totalMonths
     if (months <= 0) return 0;
-    else if (this.monthlyInterestRate === 0) return balance / months;
+    if (this.monthlyInterestRate === 0) return balance / months;
     return (balance * this.monthlyInterestRate) / (1 - Math.pow(1 + this.monthlyInterestRate, -months));
-    
-  }
-
-  loanValue(): [number[], number[]] {
-    const months = this.years * 12
-    const principals = [this.principal];
-    const ratePayments = [0];
-    let balance = this.principal;
-    let interestPayment = 0;
-
-    // Accumulate interest during delay
-    for (let i = 0; i < this.monthsDelayed; i++) {
-      interestPayment = balance * this.monthlyInterestRate;
-      balance += interestPayment;
-      principals.push(balance);
-      ratePayments.push(interestPayment);
-    }
-
-    // Recalculate payment for remaining term
-    const monthlyPayment = this.monthlyPayment
-    for (let i = 0; i < months; i++) {
-      interestPayment = balance * this.monthlyInterestRate;
-      const principalPayment = monthlyPayment - interestPayment;
-      balance = Math.max(balance - principalPayment, 0);
-      principals.push(balance);
-      ratePayments.push(interestPayment);
-    }
-    return [principals, ratePayments];
   }
 
   /**
@@ -175,7 +137,7 @@ export class Loan {
     }
   
     // 2) compute payment for the *remaining* months
-    const n = this.years * 12 - this.monthsDelayed;      // 233 if delay = 7
+    const n = this.totalMonths;
     const monthlyPmt = Loan.annuity(balance, this.monthlyInterestRate, n);
     this.monthlyPayment = monthlyPmt;                    // keep for UI
   
@@ -198,4 +160,4 @@ export class Loan {
   
     return { balances, principalPaid, interestPaid };
   }
-} 
+}

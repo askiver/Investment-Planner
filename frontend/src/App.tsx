@@ -4,15 +4,29 @@ import { Property, Stock, Loan } from './models'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { calculateMonthlyPlan } from './financeLogic';
 import type { MonthlyPlan } from './financeLogic';
+import logoImage from './assets/logo.png';
 
 
 type InvestmentType = 'Property' | 'Stock' | 'Loan';
 type Investment = Property | Stock | Loan;
 
-// Norwegian defaults for each investment type
-type RateType = 'nominal' | 'effective';
+type FormState = {
+  name: string;
+  initialValue: string;
+  expectedReturn: string;
+  taxRate: string;
+  principal: string;
+  effectiveInterestRate: string;
+  years: string;
+  months: string;
+  monthlyInvestment: string;
+  monthsDelayed: string;
+  color: string;
+  rateType: 'effective' | 'nominal';
+};
 
-const norwegianDefaults = {
+
+const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
   Property: {
     name: 'Standard Apartment',
     initialValue: '4000000',
@@ -62,32 +76,22 @@ function App() {
   const [inflation, setInflation] = useState('2.5');
 
   // Form state
-  const [form, setForm] = useState<any>({
-    ...norwegianDefaults[investmentType]
+  const [form, setForm] = useState<FormState>({
+    ...norwegianDefaults[investmentType],
+    months: '',
   });
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    if (type === 'checkbox') {
-      setForm({ ...form, [name]: (e.target as HTMLInputElement).checked });
-    } else if (name === 'monthsDelayed') {
-      setForm({ ...form, [name]: String(value) });
-    } else if (name === 'color') {
-      setForm({ ...form, color: value });
-    } else if (name === 'effectiveInterestRate') {
-      setForm({ ...form, effectiveInterestRate: value });
-    } else if (name === 'rateType') {
-      setForm({ ...form, rateType: value });
-    } else {
-      setForm({ ...form, [name]: value });
-    }
+    const { name, value } = e.target;
+    setForm(prevForm => ({ ...prevForm, [name]: value }));
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value as InvestmentType;
     setInvestmentType(newType);
     setForm({
-      ...norwegianDefaults[newType]
+      ...norwegianDefaults[newType],
+      months: '',
     });
   };
 
@@ -126,6 +130,7 @@ function App() {
         parseFloat(form.effectiveInterestRate) / 100, // convert percent to decimal
         isEffective,
         parseInt(form.years),
+        parseInt(form.months || '0'), // Include months in the calculation
         parseInt(form.monthsDelayed || '0'),
         color
       );
@@ -133,7 +138,8 @@ function App() {
     if (newInvestment) {
       setInvestments(prev => [...prev, newInvestment]);
       setForm({
-        ...norwegianDefaults[investmentType]
+        ...norwegianDefaults[investmentType],
+        months: '',
       });
     }
   };
@@ -154,13 +160,17 @@ function App() {
   );
 
   // Prepare data for stacked area chart (pre-tax and after-tax)
-  const getChartData = (useTaxed: boolean) => {
-    const data: any[] = [];
+  const getChartData = (useTaxed: boolean): {
+    data: Record<string, number>[];
+    assetKeys: string[];
+    loanKeys: string[];
+  } => {
+    const data: Record<string, number>[] = [];
     const maxMonths = timelineMonths + 1;
     // Track which loans are still active for each month
     const activeLoanKeys: Set<string> = new Set(plan.loans.map(l => l.loanName));
     for (let m = 0; m < maxMonths; m++) {
-      const entry: any = { month: m };
+      const entry: Record<string, number> = { month: m };
       let runningTotal = 0;
       let loanTotal = 0;
       // Stocks
@@ -201,15 +211,15 @@ function App() {
   const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartData(true);
 
   // Custom tooltip to show total
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && label !== undefined) {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string; payload: { Total?: number } }[]; label?: string | number }) => {
+    if (active && label !== undefined && payload) {
       const hoveredData = payload && payload.length && payload[0].payload ? payload[0].payload : {};
       const total = typeof hoveredData.Total === 'number' ? hoveredData.Total : null;
       return (
         <div style={{ background: '#fff', border: '1px solid #ccc', padding: 8 }}>
           <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Month: {label}</div>
-          {payload && payload.length > 0 && payload.map((p: any) => (
-            <div key={p.dataKey} style={{ color: p.color }}>
+          {payload.map((p) => (
+            <div key={p.name} style={{ color: p.color }}>
               {p.name}: {p.value?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </div>
           ))}
@@ -248,13 +258,14 @@ function App() {
         return inv;
       }
       if (inv instanceof Loan) {
-        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.monthsDelayed, inv.color);
-        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.monthsDelayed, inv.color);
-        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.color);
-        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.monthsDelayed, value as string);
-        if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.monthsDelayed, inv.color);
+        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
+        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
+        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
+        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.months, inv.monthsDelayed, inv.color);
+        if (field === 'months') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.monthsDelayed, inv.color);
+        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, parseInt(value as string), inv.color);
+        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, value as string);
+        if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.months, inv.monthsDelayed, inv.color);
         return inv;
       }
       return inv;
@@ -271,7 +282,7 @@ function App() {
   return (
     <div className="app-background">
       <header className="app-header">
-        <img src="/vite.svg" alt="Logo" className="app-logo" />
+        <img src={logoImage} alt="Investment Planner Logo" className="app-logo" style={{ maxHeight: '50px' }} />
         <h1>Investment Planner</h1>
         <p className="app-subtitle">Plan, visualize, and compare your investments and loans</p>
       </header>
@@ -388,8 +399,12 @@ function App() {
                   <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />
                 </div>
                 <div className="form-group">
+                  <label>Months:</label>
+                  <input name="months" placeholder="Months" type="number" value={form.months} onChange={handleFormChange} min={0} max={11} />
+                </div>
+                <div className="form-group">
                   <label>Delayed Months:</label>
-                  <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={typeof form.monthsDelayed === 'string' ? form.monthsDelayed : String(form.monthsDelayed ?? '')} onChange={handleFormChange} min={0} />
+                  <input name="monthsDelayed" placeholder="Delayed Months" type="number" value={form.monthsDelayed} onChange={handleFormChange} min={0} />
                 </div>
                 <div className="form-group">
                   <label>Interest Rate (%):</label>
@@ -572,7 +587,7 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="nominal"
-                          checked={inv.effectiveRate === false}
+                          checked={!inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
                         /> Nominal
                       </label>
@@ -581,7 +596,7 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="effective"
-                          checked={inv.effectiveRate !== false}
+                          checked={inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
                         /> Effective
                       </label>
@@ -610,7 +625,7 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="nominal"
-                          checked={inv.effectiveRate === false}
+                          checked={!inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
                         /> Nominal
                       </label>
@@ -619,7 +634,7 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="effective"
-                          checked={inv.effectiveRate !== false}
+                          checked={inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
                         /> Effective
                       </label>
@@ -647,7 +662,7 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="nominal"
-                          checked={inv.effectiveRate === false}
+                          checked={!inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
                         /> Nominal
                       </label>
@@ -656,27 +671,28 @@ function App() {
                           type="radio"
                           name="rateType"
                           value="effective"
-                          checked={inv.effectiveRate !== false}
+                          checked={inv.effectiveRate}
                           onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
                         /> Effective
                       </label>
                     </span>
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.months)} onChange={e => handleInvestmentEdit(inv.id, 'months', e.target.value)} /> (Months)
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                     <div style={{ marginLeft: 16, color: '#555' }}>
                       Monthly Payment: ${
                         inv.monthlyPayment.toLocaleString(
                           undefined, { maximumFractionDigits: 2 })
-                    }
-                    {/* Show total loan cost if available in plan */}
-                    {(() => {
-                      const planLoan = plan.loans.find(l => l.loanName === inv.name);
-                      return planLoan ? (
-                        <span style={{ marginLeft: 16 }}>
-                          Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
-                      ) : null;
-                    })()}
+                      }
+                      {/* Show total loan cost if available in plan */}
+                      {(() => {
+                        const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                        return planLoan ? (
+                          <span style={{ marginLeft: 16 }}>
+                            Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     <input
                       name="color"

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import './App.css'
-import { Property, Stock, Loan } from './models'
+import { Property, Stock, Loan, StudentLoan } from './models'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { calculateMonthlyPlan } from './financeLogic';
 import type { MonthlyPlan } from './financeLogic';
 import logoImage from './assets/logo.png';
 
 
-type InvestmentType = 'Property' | 'Stock' | 'Loan';
-type Investment = Property | Stock | Loan;
+type InvestmentType = 'Property' | 'Stock' | 'Loan' | 'Student Loan';
+type Investment = Property | Stock | Loan | StudentLoan;
 
 type FormState = {
   name: string;
@@ -78,6 +78,23 @@ const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
     monthsDelayed: '0',
     startMonths: '0',
     color: '#d62728',
+    rateType: 'effective',
+    downPaymentPercentage: '0',
+    stockSourceId: '',
+  },
+  'Student Loan': {
+    name: 'Student Loan',
+    initialValue: '',
+    currentValue: '',
+    expectedReturn: '',
+    taxRate: '',
+    principal: '50000',
+    effectiveInterestRate: '4.5', // percent
+    years: '10',
+    monthlyInvestment: '',
+    monthsDelayed: '0',
+    startMonths: '0',
+    color: '#9467bd',
     rateType: 'effective',
     downPaymentPercentage: '0',
     stockSourceId: '',
@@ -154,8 +171,21 @@ function App() {
         parseInt(form.monthsDelayed || '0'),
         parseInt(form.startMonths || '0'),
         color,
-        parseFloat(form.downPaymentPercentage || '0'), // Down payment percentage
+        parseFloat(form.downPaymentPercentage || '0') / 100, // Convert percentage to decimal
         form.stockSourceId || null // Stock source ID
+      );
+    } else if (investmentType === 'Student Loan') {
+      newInvestment = new StudentLoan(
+        id,
+        form.name,
+        parseFloat(form.principal),
+        parseFloat(form.effectiveInterestRate) / 100, // convert percent to decimal
+        isEffective,
+        parseInt(form.years),
+        parseInt(form.months || '0'), // Include months in the calculation
+        parseInt(form.monthsDelayed || '0'),
+        parseInt(form.startMonths || '0'),
+        color
       );
     }
     if (newInvestment) {
@@ -307,6 +337,44 @@ function App() {
     return null;
   };
 
+  // Handler to remove an investment
+  const handleInvestmentRemove = (id: string) => {
+    // Find the investment name for better UX in the confirmation dialog
+    const investment = investments.find(inv => inv.id === id);
+
+    // Check if this is a stock used as a down payment source by any loans
+    const isUsedAsDownPaymentSource = investment instanceof Stock && 
+      loans.some(loan => loan.stockSourceId === id);
+
+    let confirmMessage = `Are you sure you want to remove "${investment?.name}"?`;
+
+    if (isUsedAsDownPaymentSource) {
+      const affectedLoans = loans.filter(loan => loan.stockSourceId === id)
+        .map(loan => loan.name).join('", "');
+      confirmMessage = `Warning: This stock is used as a down payment source for: "${affectedLoans}".
+
+  ${confirmMessage}`;
+    }
+
+    if (investment && confirm(confirmMessage)) {
+      // If removing a stock used as down payment source, update the loans to remove the reference
+      if (isUsedAsDownPaymentSource) {
+        setInvestments(prev => prev.map(inv => {
+          if (inv instanceof Loan && inv.stockSourceId === id) {
+            return new Loan(
+              inv.id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate,
+              inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color,
+              inv.downPaymentPercentage, null
+            );
+          }
+          return inv;
+        }));
+      }
+
+      setInvestments(prev => prev.filter(inv => inv.id !== id));
+    }
+  };
+
   // Handler for inline editing of investments
   const handleInvestmentEdit = (id: string, field: string, value: string | number | boolean) => {
     setInvestments(prev => prev.map(inv => {
@@ -334,7 +402,19 @@ function App() {
         if (field === 'rateType') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
         return inv;
       }
-      if (inv instanceof Loan) {
+      if (inv instanceof StudentLoan) {
+        if (field === 'name') return new StudentLoan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color);
+        if (field === 'startMonths') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, parseInt(value as string), inv.color);
+        if (field === 'principal') return new StudentLoan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color);
+        if (field === 'effectiveInterestRate') return new StudentLoan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color);
+        if (field === 'years') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.months, inv.monthsDelayed, inv.startMonths, inv.color);
+        if (field === 'months') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.monthsDelayed, inv.startMonths, inv.color);
+        if (field === 'monthsDelayed') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, parseInt(value as string), inv.startMonths, inv.color);
+        if (field === 'color') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, value as string);
+        if (field === 'rateType') return new StudentLoan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color);
+        return inv;
+      }
+      if (inv instanceof Loan && !(inv instanceof StudentLoan)) {
         if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
         if (field === 'startMonths') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, parseInt(value as string), inv.color, inv.downPaymentPercentage, inv.stockSourceId);
         if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
@@ -344,7 +424,7 @@ function App() {
         if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, parseInt(value as string), inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
         if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, value as string, inv.downPaymentPercentage, inv.stockSourceId);
         if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
-        if (field === 'downPaymentPercentage') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, parseFloat(value as string), inv.stockSourceId);
+        if (field === 'downPaymentPercentage') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, parseFloat(value as string) / 100, inv.stockSourceId);
         if (field === 'stockSourceId') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, value as string || null);
         return inv;
       }
@@ -376,6 +456,7 @@ function App() {
                 <option value="Property">Property</option>
                 <option value="Stock">Stock</option>
                 <option value="Loan">Loan</option>
+                <option value="Student Loan">Student Loan</option>
               </select>
             </div>
             <div className="form-group">
@@ -484,7 +565,7 @@ function App() {
                 </div>
               </>
             )}
-            {investmentType === 'Loan' && (
+            {(investmentType === 'Loan' || investmentType === 'Student Loan') && (
               <>
                 <div className="form-group">
                   <label>Principal:</label>
@@ -510,19 +591,23 @@ function App() {
                   <label>Interest Rate (%):</label>
                   <input name="effectiveInterestRate" placeholder="Interest Rate (%)" type="number" value={form.effectiveInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />
                 </div>
-                <div className="form-group">
-                  <label>Down Payment (%):</label>
-                  <input name="downPaymentPercentage" placeholder="Down Payment Percentage" type="number" value={form.downPaymentPercentage} onChange={handleFormChange} step="any" min={0} max={100} />
-                </div>
-                <div className="form-group">
-                  <label>Source of Down Payment:</label>
-                  <select name="stockSourceId" value={form.stockSourceId} onChange={handleFormChange}>
-                    <option value="">None (External funds)</option>
-                    {stocks.map(stock => (
-                      <option key={stock.id} value={stock.id}>{stock.name}</option>
-                    ))}
-                  </select>
-                </div>
+                {investmentType === 'Loan' && (
+                  <>
+                    <div className="form-group">
+                      <label>Down Payment (%):</label>
+                      <input name="downPaymentPercentage" placeholder="Down Payment Percentage" type="number" value={form.downPaymentPercentage} onChange={handleFormChange} step="any" min={0} max={100} />
+                    </div>
+                    <div className="form-group">
+                      <label>Source of Down Payment:</label>
+                      <select name="stockSourceId" value={form.stockSourceId} onChange={handleFormChange}>
+                        <option value="">None (External funds)</option>
+                        {stocks.map(stock => (
+                          <option key={stock.id} value={stock.id}>{stock.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
                   <label>Rate type:</label>
                   <div className="rate-type-options">
@@ -685,10 +770,19 @@ function App() {
           <h2>Investments</h2>
           <ul>
             {investments.map((inv) => (
-              <li key={inv.id} style={{ marginBottom: 12 }}>
+              <li key={inv.id}>
                 {inv instanceof Property && (
                   <>
-                    <b>Property:</b>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <b>Property:</b>
+                      <button 
+                        onClick={() => handleInvestmentRemove(inv.id)} 
+                        className="remove-btn"
+                        title="Remove investment"
+                      >
+                        &times;
+                      </button>
+                    </div>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} /> (Initial Value)
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.currentValue)} onChange={e => handleInvestmentEdit(inv.id, 'currentValue', e.target.value)} /> (Current Value)
@@ -728,7 +822,16 @@ function App() {
                 )}
                 {inv instanceof Stock && (
                   <>
-                    <b>Stock:</b>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <b>Stock:</b>
+                      <button 
+                        onClick={() => handleInvestmentRemove(inv.id)} 
+                        className="remove-btn"
+                        title="Remove investment"
+                      >
+                        &times;
+                      </button>
+                    </div>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} /> (Initial Value)
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.currentValue)} onChange={e => handleInvestmentEdit(inv.id, 'currentValue', e.target.value)} /> (Current Value)
@@ -766,9 +869,85 @@ function App() {
                     />
                   </>
                 )}
-                {inv instanceof Loan && (
+                                  {inv instanceof StudentLoan && (
                   <>
-                    <b>Loan:</b>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <b>Student Loan:</b>
+                      <button 
+                        onClick={() => handleInvestmentRemove(inv.id)} 
+                        className="remove-btn"
+                        title="Remove investment"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.startMonths)} onChange={e => handleInvestmentEdit(inv.id, 'startMonths', e.target.value)} /> (Start Month)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
+                    <span style={{ marginLeft: 8 }}>
+                      <label style={{ marginRight: 4 }}>Rate type:</label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="nominal"
+                          checked={!inv.effectiveRate}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'nominal')}
+                        /> Nominal
+                      </label>
+                      <label style={{ marginLeft: 8 }}>
+                        <input
+                          type="radio"
+                          name="rateType"
+                          value="effective"
+                          checked={inv.effectiveRate}
+                          onChange={() => handleInvestmentEdit(inv.id, 'rateType', 'effective')}
+                        /> Effective
+                      </label>
+                    </span>
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.years)} onChange={e => handleInvestmentEdit(inv.id, 'years', e.target.value)} /> (Years)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.months)} onChange={e => handleInvestmentEdit(inv.id, 'months', e.target.value)} /> (Months)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
+                    <div style={{ marginLeft: 16, color: '#555' }}>
+                      <div>
+                        Monthly Payment: ${
+                          inv.monthlyPayment.toLocaleString(
+                            undefined, { maximumFractionDigits: 2 })
+                        }
+                        {/* Show total loan cost if available in plan */}
+                        {(() => {
+                          const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                          return planLoan ? (
+                            <span style={{ marginLeft: 16 }}>
+                              Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                    <input
+                      name="color"
+                      type="color"
+                      value={inv.color}
+                      onChange={e => handleInvestmentEdit(inv.id, 'color', e.target.value)}
+                      style={{ marginLeft: 8, width: 40, height: 30, verticalAlign: 'middle' }}
+                      title="Edit color"
+                    />
+                  </>
+                                  )}
+                                  {inv instanceof Loan && !(inv instanceof StudentLoan) && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <b>Loan:</b>
+                      <button 
+                        onClick={() => handleInvestmentRemove(inv.id)} 
+                        className="remove-btn"
+                        title="Remove investment"
+                      >
+                        &times;
+                      </button>
+                    </div>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.startMonths)} onChange={e => handleInvestmentEdit(inv.id, 'startMonths', e.target.value)} /> (Start Month)
@@ -837,7 +1016,7 @@ function App() {
                         </select>
                         {inv.downPaymentPercentage > 0 && inv.stockSourceId && (
                           <span>
-                            Amount: {(inv.principal * (inv.downPaymentPercentage / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            Amount: {(inv.principal * inv.downPaymentPercentage).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                           </span>
                         )}
                       </div>

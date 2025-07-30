@@ -96,7 +96,32 @@ h2 {
   gap: 16px;
   margin-bottom: 12px;
 }
+.remove-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+}
 
+.remove-btn:hover {
+  background-color: #d32f2f;
+}
+
+.investments-section li {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
 .form-group label {
   font-weight: 500;
   color: #e9ecef;

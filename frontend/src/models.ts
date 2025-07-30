@@ -158,18 +158,18 @@ export class Loan {
   constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, startMonths: number = 0, color: string, downPaymentPercentage: number = 0, stockSourceId: string | null = null) {
     this.id = id;
     this.name = name;
-    this.principal = principal;
     this.yearlyRate = yearlyRate;
     this.years = years;
     this.months = months; // Initialize months
     this.totalMonths = years * 12 + months;
     this.monthsDelayed = monthsDelayed;
     this.startMonths = startMonths;
+    this.downPaymentPercentage = downPaymentPercentage;
+    this.principal = principal * (1-downPaymentPercentage)
     this.monthlyInterestRate = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.monthlyPayment = this.calculateMonthlyPayment();
     this.color = color;
     this.effectiveRate = effectiveRate;
-    this.downPaymentPercentage = downPaymentPercentage
     this.stockSourceId = stockSourceId
   }
 
@@ -242,5 +242,12 @@ export class Loan {
     }
   
     return { balances, principalPaid, interestPaid };
+  }
+}
+
+export class StudentLoan extends Loan {
+  constructor(id:string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, startMonths: number = 0, color: string,) {
+    // Student loans are a specific type of loan with no down payment
+    super(id, name, principal, yearlyRate, effectiveRate, years, months, monthsDelayed, startMonths, color, 0, null);
   }
 }

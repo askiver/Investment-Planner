@@ -13,6 +13,7 @@ type Investment = Property | Stock | Loan;
 type FormState = {
   name: string;
   initialValue: string;
+  currentValue: string;
   expectedReturn: string;
   taxRate: string;
   principal: string;
@@ -21,8 +22,11 @@ type FormState = {
   months: string;
   monthlyInvestment: string;
   monthsDelayed: string;
+  startMonths: string;
   color: string;
   rateType: 'effective' | 'nominal';
+  downPaymentPercentage: string;
+  stockSourceId: string;
 };
 
 
@@ -30,6 +34,7 @@ const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
   Property: {
     name: 'Standard Apartment',
     initialValue: '4000000',
+    currentValue: '4000000',
     expectedReturn: '3', // percent
     taxRate: '22',      // percent
     principal: '',
@@ -37,12 +42,16 @@ const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
     years: '',
     monthlyInvestment: '',
     monthsDelayed: '',
+    startMonths: '0',
     color: '#1f77b4',
     rateType: 'effective',
+    downPaymentPercentage: '',
+    stockSourceId: '',
   },
   Stock: {
     name: 'Index Fund',
     initialValue: '100000',
+    currentValue: '100000',
     expectedReturn: '7', // percent
     taxRate: '22',      // percent
     principal: '',
@@ -50,12 +59,16 @@ const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
     years: '',
     monthlyInvestment: '',
     monthsDelayed: '',
+    startMonths: '0',
     color: '#2ca02c',
     rateType: 'effective',
+    downPaymentPercentage: '',
+    stockSourceId: '',
   },
   Loan: {
     name: 'Mortgage',
     initialValue: '',
+    currentValue: '',
     expectedReturn: '',
     taxRate: '',
     principal: '3000000',
@@ -63,15 +76,18 @@ const norwegianDefaults: Record<InvestmentType, Omit<FormState, 'months'>> = {
     years: '25',
     monthlyInvestment: '',
     monthsDelayed: '0',
+    startMonths: '0',
     color: '#d62728',
     rateType: 'effective',
+    downPaymentPercentage: '0',
+    stockSourceId: '',
   },
 };
 
 function App() {
   const [investmentType, setInvestmentType] = useState<InvestmentType>('Property');
   const [investments, setInvestments] = useState<Array<Property | Stock | Loan>>([]);
-  const [timelineMonths, setTimelineMonths] = useState(12);
+  const [timelineYears, setTimelineYears] = useState(1);
   const [income, setIncome] = useState('10000');
   const [inflation, setInflation] = useState('2.5');
 
@@ -106,7 +122,9 @@ function App() {
       newInvestment = new Property(
         id,
         form.name,
+        parseInt(form.startMonths || '0'),
         parseFloat(form.initialValue),
+        parseFloat(form.currentValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
         isEffective,
         parseFloat(form.taxRate) / 100,        // convert percent to decimal
@@ -116,7 +134,9 @@ function App() {
       newInvestment = new Stock(
         id,
         form.name,
+        parseInt(form.startMonths || '0'),
         parseFloat(form.initialValue),
+        parseFloat(form.currentValue),
         parseFloat(form.expectedReturn) / 100, // convert percent to decimal
         isEffective,
         parseFloat(form.taxRate) / 100,        // convert percent to decimal
@@ -132,7 +152,10 @@ function App() {
         parseInt(form.years),
         parseInt(form.months || '0'), // Include months in the calculation
         parseInt(form.monthsDelayed || '0'),
-        color
+        parseInt(form.startMonths || '0'),
+        color,
+        parseFloat(form.downPaymentPercentage || '0'), // Down payment percentage
+        form.stockSourceId || null // Stock source ID
       );
     }
     if (newInvestment) {
@@ -155,7 +178,7 @@ function App() {
     loans,
     stocks,
     properties,
-    timelineMonths,
+    timelineYears * 12,
     parseFloat(inflation) / 100 || 0
   );
 
@@ -166,63 +189,113 @@ function App() {
     loanKeys: string[];
   } => {
     const data: Record<string, number>[] = [];
-    const maxMonths = timelineMonths + 1;
-    // Track which loans are still active for each month
-    const activeLoanKeys: Set<string> = new Set(plan.loans.map(l => l.loanName));
-    for (let m = 0; m < maxMonths; m++) {
+    const maxMonths = timelineYears * 12 + 1;
+
+    for (let m = 0; m <= maxMonths; m++) {
       const entry: Record<string, number> = { month: m };
       let runningTotal = 0;
       let loanTotal = 0;
-      // Stocks
+
+      // Stocks - only include if they have started and have defined values
       plan.stockInvestments.forEach(stockPlan => {
-        const val = useTaxed ? stockPlan.taxedValues[m] ?? 0 : stockPlan.totalValues[m] ?? 0;
-        entry[stockPlan.assetName] = val;
-        runningTotal += val;
-      });
-      // Properties
-      plan.propertyInvestments.forEach(propertyPlan => {
-        const val = useTaxed ? propertyPlan.taxedValues[m] ?? 0 : propertyPlan.totalValues[m] ?? 0;
-        entry[propertyPlan.assetName] = val;
-        runningTotal += val;
-      });
-      // Loans (as negative)
-      plan.loans.forEach(loanPlan => {
-        const principal = loanPlan.principals[m] ?? 0;
-        if (principal > 0) {
-          entry[loanPlan.loanName] = -principal; // Negative for stacking below x-axis
-          loanTotal += principal;
-        } else {
-          // Remove loan from active set if paid off
-          activeLoanKeys.delete(loanPlan.loanName);
+        const stock = stocks.find(s => s.name === stockPlan.assetName);
+        const val = useTaxed ? stockPlan.taxedValues[m] : stockPlan.totalValues[m];
+        // Only include in chart if the stock has started (val is not undefined) and has value > 0
+        if (stock && val !== undefined && val > 0) {
+          entry[stockPlan.assetName] = val;
+          runningTotal += val;
         }
       });
+
+      // Properties - only include if they have started and have defined values
+      plan.propertyInvestments.forEach(propertyPlan => {
+        const property = properties.find(p => p.name === propertyPlan.assetName);
+        const val = useTaxed ? propertyPlan.taxedValues[m] : propertyPlan.totalValues[m];
+        // Only include in chart if the property has started (val is not undefined) and has value > 0
+        if (property && val !== undefined && val > 0) {
+          entry[propertyPlan.assetName] = val;
+          runningTotal += val;
+        }
+      });
+
+      // Loans - only include if they have started and have non-zero principal
+      plan.loans.forEach(loanPlan => {
+        const loan = loans.find(l => l.name === loanPlan.loanName);
+        const principal = loanPlan.principals[m] ?? 0;
+        // Only include in chart if the loan has started (m >= startMonths) and has principal
+        if (loan && m >= loan.startMonths && principal > 0) {
+          entry[loanPlan.loanName] = -principal; // Negative for stacking below x-axis
+          loanTotal += principal;
+        }
+      });
+
       entry['Total'] = runningTotal - loanTotal;
       data.push(entry);
     }
-    // Only include loan keys that are active at any point in the timeline
-    const loanKeys = plan.loans.map(l => l.loanName).filter(name => data.some(entry => entry[name] < 0));
-    return {
-      data,
-      assetKeys: plan.stockInvestments.map(s => s.assetName).concat(plan.propertyInvestments.map(p => p.assetName)),
-      loanKeys
-    };
+
+    // Only include keys for assets/loans that appear at some point in the timeline
+    const assetKeys = plan.stockInvestments
+      .map(s => s.assetName)
+      .filter(name => data.some(entry => entry[name] !== undefined && entry[name] > 0))
+      .concat(
+        plan.propertyInvestments
+          .map(p => p.assetName)
+          .filter(name => data.some(entry => entry[name] !== undefined && entry[name] > 0))
+      );
+
+    const loanKeys = plan.loans
+      .map(l => l.loanName)
+      .filter(name => data.some(entry => entry[name] !== undefined && entry[name] < 0));
+
+    return { data, assetKeys, loanKeys };
   };
   const { data: chartData, assetKeys, loanKeys } = getChartData(false);
   const { data: chartDataWithTax, assetKeys: assetKeysWithTax, loanKeys: loanKeysWithTax } = getChartData(true);
 
-  // Custom tooltip to show total
+  // Custom tooltip to show total and loan payment details
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string; payload: { Total?: number } }[]; label?: string | number }) => {
     if (active && label !== undefined && payload) {
       const hoveredData = payload && payload.length && payload[0].payload ? payload[0].payload : {};
       const total = typeof hoveredData.Total === 'number' ? hoveredData.Total : null;
+
+      // Get the month index from the label to look up loan payment details
+      const monthIndex = Number(label);
+
       return (
         <div style={{ background: '#fff', border: '1px solid #ccc', padding: 8 }}>
-          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Month: {label}</div>
-          {payload.map((p) => (
-            <div key={p.name} style={{ color: p.color }}>
-              {p.name}: {p.value?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
-          ))}
+          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Year: {Math.floor(Number(label) / 12)}, Month: {Number(label) % 12}</div>
+          {payload.map((p) => {
+            // Find if this is a loan
+            const isLoan = loanKeys.includes(p.name) || loanKeysWithTax.includes(p.name);
+            const loanPlan = isLoan ? plan.loans.find(loan => loan.loanName === p.name) : null;
+
+            // Find if this stock has any sell-offs in this month
+            const isStock = !isLoan && (assetKeys.includes(p.name) || assetKeysWithTax.includes(p.name));
+            const stockObj = isStock ? stocks.find(s => s.name === p.name) : null;
+            const stockSellOff = stockObj && plan.stockSellOffs && plan.stockSellOffs[stockObj.id] ? 
+              plan.stockSellOffs[stockObj.id][monthIndex] : 0;
+
+            return (
+              <div key={p.name}>
+                <div style={{ color: p.color }}>
+                  {p.name}: {Math.abs(p.value)?.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
+                {/* If this is a loan and we have payment details for this month, show them */}
+                {isLoan && loanPlan && monthIndex < loanPlan.principals.length && (
+                  <div style={{ marginLeft: 20, fontSize: '0.9em', color: p.color }}>
+                    <div>Principal Payment: {loanPlan.principalPayments?.[monthIndex]?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}</div>
+                    <div>Interest Payment: {loanPlan.ratePayments[monthIndex]?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}</div>
+                  </div>
+                )}
+                {/* If this is a stock with a sell-off in this month, show it */}
+                {isStock && stockSellOff > 0 && (
+                  <div style={{ marginLeft: 20, fontSize: '0.9em', color: p.color }}>
+                    <div>Sold for down payment: {stockSellOff.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {total !== null && (
             <div style={{ marginTop: 4, color: '#000' }}>
               <b>Total:</b> {total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -240,32 +313,39 @@ function App() {
       if (inv.id !== id) return inv;
       // For each type, update the relevant fields
       if (inv instanceof Property) {
-        if (field === 'name') return new Property(id, value as string, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'initialValue') return new Property(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'expectedReturn') return new Property(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'taxRate') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
-        if (field === 'color') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
-        if (field === 'rateType') return new Property(id, inv.name, inv.initialValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
+        if (field === 'name') return new Property(id, value as string, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'startMonths') return new Property(id, inv.name, parseInt(value as string), inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'initialValue') return new Property(id, inv.name, inv.startMonths, parseFloat(value as string), inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'currentValue') return new Property(id, inv.name, inv.startMonths, inv.initialValue, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'expectedReturn') return new Property(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'taxRate') return new Property(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
+        if (field === 'color') return new Property(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
+        if (field === 'rateType') return new Property(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
         return inv;
       }
       if (inv instanceof Stock) {
-        if (field === 'name') return new Stock(id, value as string, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'initialValue') return new Stock(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.initialValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
-        if (field === 'taxRate') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
-        if (field === 'color') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
-        if (field === 'rateType') return new Stock(id, inv.name, inv.initialValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
+        if (field === 'name') return new Stock(id, value as string, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'startMonths') return new Stock(id, inv.name, parseInt(value as string), inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'initialValue') return new Stock(id, inv.name, inv.startMonths, parseFloat(value as string), inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'currentValue') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'expectedReturn') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, parseFloat(value as string) / 100, inv.effectiveRate, inv.taxRate, inv.color);
+        if (field === 'taxRate') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, parseFloat(value as string) / 100, inv.color);
+        if (field === 'color') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, value as string);
+        if (field === 'rateType') return new Stock(id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
         return inv;
       }
       if (inv instanceof Loan) {
-        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
-        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
-        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.color);
-        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.months, inv.monthsDelayed, inv.color);
-        if (field === 'months') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.monthsDelayed, inv.color);
-        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, parseInt(value as string), inv.color);
-        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, value as string);
-        if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.months, inv.monthsDelayed, inv.color);
+        if (field === 'name') return new Loan(id, value as string, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'startMonths') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, parseInt(value as string), inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'principal') return new Loan(id, inv.name, parseFloat(value as string), inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'effectiveInterestRate') return new Loan(id, inv.name, inv.principal, parseFloat(value as string) / 100, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'years') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, parseInt(value as string), inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'months') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, parseInt(value as string), inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'monthsDelayed') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, parseInt(value as string), inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'color') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, value as string, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'rateType') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, value === 'effective', inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, inv.stockSourceId);
+        if (field === 'downPaymentPercentage') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, parseFloat(value as string), inv.stockSourceId);
+        if (field === 'stockSourceId') return new Loan(id, inv.name, inv.principal, inv.yearlyRate, inv.effectiveRate, inv.years, inv.months, inv.monthsDelayed, inv.startMonths, inv.color, inv.downPaymentPercentage, value as string || null);
         return inv;
       }
       return inv;
@@ -307,6 +387,14 @@ function App() {
                 <div className="form-group">
                   <label>Initial Value:</label>
                   <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />
+                </div>
+                <div className="form-group">
+                  <label>Current Value:</label>
+                  <input name="currentValue" placeholder="Current Value" type="number" value={form.currentValue} onChange={handleFormChange} step="any" required />
+                </div>
+                <div className="form-group">
+                  <label>Start Month:</label>
+                  <input name="startMonths" placeholder="Start Month" type="number" value={form.startMonths} onChange={handleFormChange} min={0} />
                 </div>
                 <div className="form-group">
                   <label>Tax Rate (%):</label>
@@ -352,6 +440,14 @@ function App() {
                   <input name="initialValue" placeholder="Initial Value" type="number" value={form.initialValue} onChange={handleFormChange} step="any" required />
                 </div>
                 <div className="form-group">
+                  <label>Current Value:</label>
+                  <input name="currentValue" placeholder="Current Value" type="number" value={form.currentValue} onChange={handleFormChange} step="any" required />
+                </div>
+                <div className="form-group">
+                  <label>Start Month:</label>
+                  <input name="startMonths" placeholder="Start Month" type="number" value={form.startMonths} onChange={handleFormChange} min={0} />
+                </div>
+                <div className="form-group">
                   <label>Tax Rate (%):</label>
                   <input name="taxRate" placeholder="Tax Rate (%)" type="number" value={form.taxRate} onChange={handleFormChange} step="any" min={0} max={100} required />
                 </div>
@@ -395,6 +491,10 @@ function App() {
                   <input name="principal" placeholder="Principal" type="number" value={form.principal} onChange={handleFormChange} step="any" required />
                 </div>
                 <div className="form-group">
+                  <label>Start Month:</label>
+                  <input name="startMonths" placeholder="Start Month" type="number" value={form.startMonths} onChange={handleFormChange} min={0} />
+                </div>
+                <div className="form-group">
                   <label>Years:</label>
                   <input name="years" placeholder="Years" type="number" value={form.years} onChange={handleFormChange} required />
                 </div>
@@ -409,6 +509,19 @@ function App() {
                 <div className="form-group">
                   <label>Interest Rate (%):</label>
                   <input name="effectiveInterestRate" placeholder="Interest Rate (%)" type="number" value={form.effectiveInterestRate} onChange={handleFormChange} step="any" min={0} max={100} required />
+                </div>
+                <div className="form-group">
+                  <label>Down Payment (%):</label>
+                  <input name="downPaymentPercentage" placeholder="Down Payment Percentage" type="number" value={form.downPaymentPercentage} onChange={handleFormChange} step="any" min={0} max={100} />
+                </div>
+                <div className="form-group">
+                  <label>Source of Down Payment:</label>
+                  <select name="stockSourceId" value={form.stockSourceId} onChange={handleFormChange}>
+                    <option value="">None (External funds)</option>
+                    {stocks.map(stock => (
+                      <option key={stock.id} value={stock.id}>{stock.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Rate type:</label>
@@ -446,13 +559,13 @@ function App() {
           <h2>Portfolio Settings</h2>
           <div className="settings-form">
             <div className="form-group">
-              <label>Timeline (months):</label>
+              <label>Timeline (years):</label>
               <input
                 type="number"
                 min={1}
-                max={600}
-                value={timelineMonths}
-                onChange={e => setTimelineMonths(Number(e.target.value))}
+                max={50}
+                value={timelineYears}
+                onChange={e => setTimelineYears(Number(e.target.value))}
               />
             </div>
             <div className="form-group">
@@ -481,7 +594,7 @@ function App() {
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <XAxis dataKey="month"
-                     tickFormatter={value => (value / 12).toFixed(0)}
+                     tickFormatter={value => Math.floor(value / 12).toString()}
                      interval={11}
                      label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
                />
@@ -526,7 +639,7 @@ function App() {
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={chartDataWithTax} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <XAxis dataKey="month"
-                     tickFormatter={value => (value / 12).toFixed(0)}
+                     tickFormatter={value => Math.floor(value / 12).toString()}
                      interval={11}
                      label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
                />
@@ -577,7 +690,9 @@ function App() {
                   <>
                     <b>Property:</b>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} /> (Initial Value)
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.currentValue)} onChange={e => handleInvestmentEdit(inv.id, 'currentValue', e.target.value)} /> (Current Value)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.startMonths)} onChange={e => handleInvestmentEdit(inv.id, 'startMonths', e.target.value)} /> (Start Month)
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
                     <span style={{ marginLeft: 8 }}>
@@ -615,7 +730,9 @@ function App() {
                   <>
                     <b>Stock:</b>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
-                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.initialValue)} onChange={e => handleInvestmentEdit(inv.id, 'initialValue', e.target.value)} /> (Initial Value)
+                    <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.currentValue)} onChange={e => handleInvestmentEdit(inv.id, 'currentValue', e.target.value)} /> (Current Value)
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.startMonths)} onChange={e => handleInvestmentEdit(inv.id, 'startMonths', e.target.value)} /> (Start Month)
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'expectedReturn', e.target.value)} />%
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.taxRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'taxRate', e.target.value)} />%
                     <span style={{ marginLeft: 8 }}>
@@ -654,6 +771,7 @@ function App() {
                     <b>Loan:</b>
                     <input style={{ marginLeft: 4, width: 100 }} value={inv.name} onChange={e => handleInvestmentEdit(inv.id, 'name', e.target.value)} />
                     <input style={{ marginLeft: 4, width: 80 }} type="number" value={String(inv.principal)} onChange={e => handleInvestmentEdit(inv.id, 'principal', e.target.value)} />
+                    <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.startMonths)} onChange={e => handleInvestmentEdit(inv.id, 'startMonths', e.target.value)} /> (Start Month)
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.yearlyRate * 100)} onChange={e => handleInvestmentEdit(inv.id, 'effectiveInterestRate', e.target.value)} />%
                     <span style={{ marginLeft: 8 }}>
                       <label style={{ marginRight: 4 }}>Rate type:</label>
@@ -680,19 +798,49 @@ function App() {
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.months)} onChange={e => handleInvestmentEdit(inv.id, 'months', e.target.value)} /> (Months)
                     <input style={{ marginLeft: 4, width: 60 }} type="number" value={String(inv.monthsDelayed)} onChange={e => handleInvestmentEdit(inv.id, 'monthsDelayed', e.target.value)} /> (Delayed Months)
                     <div style={{ marginLeft: 16, color: '#555' }}>
-                      Monthly Payment: ${
-                        inv.monthlyPayment.toLocaleString(
-                          undefined, { maximumFractionDigits: 2 })
-                      }
-                      {/* Show total loan cost if available in plan */}
-                      {(() => {
-                        const planLoan = plan.loans.find(l => l.loanName === inv.name);
-                        return planLoan ? (
-                          <span style={{ marginLeft: 16 }}>
-                            Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      <div>
+                        Monthly Payment: ${
+                          inv.monthlyPayment.toLocaleString(
+                            undefined, { maximumFractionDigits: 2 })
+                        }
+                        {/* Show total loan cost if available in plan */}
+                        {(() => {
+                          const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                          return planLoan ? (
+                            <span style={{ marginLeft: 16 }}>
+                              Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}>
+                        <span style={{ marginRight: 8 }}>Down Payment:</span>
+                        <input 
+                          style={{ width: 60 }} 
+                          type="number" 
+                          value={String(inv.downPaymentPercentage)} 
+                          onChange={e => handleInvestmentEdit(inv.id, 'downPaymentPercentage', e.target.value)}
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />%
+                        <span style={{ marginLeft: 16, marginRight: 8 }}>Source:</span>
+                        <select 
+                          value={inv.stockSourceId || ''} 
+                          onChange={e => handleInvestmentEdit(inv.id, 'stockSourceId', e.target.value)}
+                          style={{ marginRight: 8 }}
+                        >
+                          <option value="">None (External funds)</option>
+                          {stocks.map(stock => (
+                            <option key={stock.id} value={stock.id}>{stock.name}</option>
+                          ))}
+                        </select>
+                        {inv.downPaymentPercentage > 0 && inv.stockSourceId && (
+                          <span>
+                            Amount: {(inv.principal * (inv.downPaymentPercentage / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                           </span>
-                        ) : null;
-                      })()}
+                        )}
+                      </div>
                     </div>
                     <input
                       name="color"

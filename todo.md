@@ -1,5 +1,5 @@
 # things to get done for the app:
-- Add possibility of selecting start date for investments and expenditures
+- Add actual date system for calculations (more realistic)
 - Add possibility of selecting part of asset value to be sold and used as loan deductible.
 - Add possibility of creating and saving scenarios for easier comparisons.
     - Add scenario names

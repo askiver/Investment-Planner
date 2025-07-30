@@ -4,20 +4,22 @@ export interface MonthlyPlan {
   loans: LoanPaymentPlan[]; // payment per loan
   stockInvestments: AssetPaymentPlan[]; // total invested in stocks
   propertyInvestments: AssetPaymentPlan[]; // Total invested in property
+  stockSellOffs?: Record<string, number[]>; // Track stock selloffs by stock ID
 }
 
 export interface LoanPaymentPlan {
   loanName: string,
   monthlyCost: number,
   totalCost: number,
-  principals: number[],
-  ratePayments: number[],
+  principals: number[],   // Running balances for each month
+  ratePayments: number[], // Interest paid each month
+  principalPayments?: number[], // Principal paid each month (calculated from the loan schedule)
 }
 
 export interface AssetPaymentPlan {
   assetName: string,
-  totalValues: number[],
-  taxedValues: number[],
+  totalValues: (number | undefined)[],
+  taxedValues: (number | undefined)[],
 }
 /**
 function totalLoanCost(sch: LoanSchedule): number {
@@ -46,10 +48,32 @@ export function calculateMonthlyPlan(
 ): MonthlyPlan {
 
   /* --------------- PASS 0: overall timeline length --------------- */
-  const maxDelayed = loans.length ? Math.max(...loans.map(l => l.monthsDelayed)) : 0;
-  const totalMonths = months + maxDelayed;
+  const maxLoanStart = loans.length ? Math.max(...loans.map(l => l.startMonths + l.monthsDelayed)) : 0;
+  const maxAssetStart = [...stocks, ...properties].length ?
+    Math.max(...[...stocks, ...properties].map(a => a.startMonths)) : 0;
+  const totalMonths = Math.max(months, months + maxLoanStart, months + maxAssetStart);
 
-  /* --------------- PASS 1: aggregate loan cash-flows ------------- */
+  /* --------------- PASS 1: calculate stock sell-offs for loan down payments ------------- */
+  const stockSellOffs: Record<string, number[]> = {};
+
+  // Initialize selloff arrays for each stock
+  stocks.forEach(stock => {
+    stockSellOffs[stock.id] = new Array<number>(totalMonths).fill(0);
+  });
+
+  // Calculate down payment amounts and create sell-off plans
+  loans.forEach(loan => {
+    if (loan.downPaymentPercentage > 0 && loan.stockSourceId) {
+      const downPaymentAmount = loan.principal * (loan.downPaymentPercentage / 100);
+
+      // Add the down payment amount to the sell-off at the loan start month
+      if (stockSellOffs[loan.stockSourceId]) {
+        stockSellOffs[loan.stockSourceId][loan.startMonths] += downPaymentAmount;
+      }
+    }
+  });
+
+  /* --------------- PASS 2: aggregate loan cash-flows ------------- */
   const principalOut = new Array<number>(totalMonths).fill(0);
   const interestOut  = new Array<number>(totalMonths).fill(0);
 
@@ -57,6 +81,7 @@ export function calculateMonthlyPlan(
     loans: [],
     stockInvestments: [],
     propertyInvestments: [],
+    stockSellOffs
   };
 
   loans.forEach(loan => {
@@ -72,6 +97,7 @@ export function calculateMonthlyPlan(
       totalCost: loan.monthlyPayment * loan.totalMonths,
       principals: sch.balances,
       ratePayments: sch.interestPaid,
+      principalPayments: sch.principalPaid,
     });
   });
 
@@ -89,20 +115,22 @@ export function calculateMonthlyPlan(
   );
 
   /* --------------- PASS 3: project assets ------------------------ */
-  if (stocks.length) {
-    const s = stocks[0];
+  // Handle all stock investments
+  stocks.forEach(stock => {
+    const sellOffs = stockSellOffs[stock.id] || new Array<number>(totalMonths).fill(0);
     plans.stockInvestments.push({
-      assetName:   s.name,
-      totalValues: s.projectedValue(totalMonths, false, investable),
-      taxedValues: s.projectedValue(totalMonths, true,  investable),
+      assetName:   stock.name,
+      totalValues: stock.projectedValue(totalMonths, false, investable, sellOffs),
+      taxedValues: stock.projectedValue(totalMonths, true,  investable, sellOffs),
     });
-  }
+  });
 
-  properties.forEach(p => {
+  // Handle all property investments
+  properties.forEach(property => {
     plans.propertyInvestments.push({
-      assetName:   p.name,
-      totalValues: p.projectedValue(totalMonths, false, new Array(totalMonths).fill(0)),
-      taxedValues: p.projectedValue(totalMonths, true,  new Array(totalMonths).fill(0)),
+      assetName:   property.name,
+      totalValues: property.projectedValue(totalMonths, false),
+      taxedValues: property.projectedValue(totalMonths, true),
     });
   });
 

@@ -1,4 +1,7 @@
 // Common models for the investment planner
+  /**
+   * Represents the schedule of a loan's payments and balances over time
+   */
 export interface LoanSchedule {
   /* Arrays have identical length = totalMonths.
      Index 0 means “end of month 0” (today → next month). */
@@ -15,6 +18,7 @@ function calculateMonthlyIncrease(yearlyRate: number, effectiveRate: boolean): n
 export abstract class Asset {
   id: string;
   name: string;
+  startMonths: number;
   initialValue: number;
   currentValue: number;
   yearlyRate: number; // e.g., 0.07 for 7%
@@ -23,11 +27,12 @@ export abstract class Asset {
   color: string;
   effectiveRate: boolean;
 
-  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+  constructor(id: string, name: string, startMonths: number, initialValue: number, currentValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
     this.id = id;
     this.name = name;
+    this.startMonths = startMonths;
     this.initialValue = initialValue;
-    this.currentValue = initialValue;
+    this.currentValue = currentValue;
     this.yearlyRate = yearlyRate;
     this.monthlyIncrease = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.taxRate = taxRate;
@@ -35,38 +40,101 @@ export abstract class Asset {
     this.effectiveRate = effectiveRate;
   }
 
+}
+
+export class Property extends Asset {
+  constructor(id: string, name: string, startMonths: number, initialValue: number, currentValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+    super(id, name, startMonths, initialValue, currentValue, yearlyRate, effectiveRate, taxRate, color);
+  }
+
   // Method for calculating the value of the asset after n months
-  projectedValue(months: number, tax: boolean, monthlyInvestments: number[]): number[] {
-    const values = [];
-    let value = this.initialValue;
-    let insertedValue = this.initialValue
+  projectedValue(months: number, tax: boolean): (number | undefined)[] {
+    const values: (number | undefined)[] = [];
+    let value = 0; // Start with 0 until start month
+    let insertedValue = 0;
     let taxAmount = 0;
-    values.push(value);
-    for (let i = 0; i < months; i++) {
-      value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
-      insertedValue += monthlyInvestments[i]
-      if (tax) {
-        taxAmount = (value - insertedValue) * this.taxRate;
-        values.push(value - taxAmount)
-      }
-      else {
-        values.push(value);
+
+    // No need to push undefined at month 0 since we properly handle the start month
+
+    for (let i = 0; i <= months; i++) {
+      if (i < this.startMonths) {
+        // Before start month, asset doesn't exist
+        values.push(undefined);
+      } else if (i === this.startMonths) {
+        // At start month, initialize with current value
+        value = this.currentValue
+        insertedValue = this.initialValue;
+        if (tax) {
+          taxAmount = (value - insertedValue) * this.taxRate;
+          values.push(value - taxAmount);
+        } else {
+          values.push(value);
+        }
+      } else {
+        // After start month, normal growth
+        value = value * (1 + this.monthlyIncrease);
+        if (tax) {
+          taxAmount = (value - insertedValue) * this.taxRate;
+          values.push(value - taxAmount);
+        } else {
+          values.push(value);
+        }
       }
     }
     return values;
   }
 }
 
-export class Property extends Asset {
-  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
-    super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
-  }
-}
-
 export class Stock extends Asset {
+  constructor(id: string, name: string, startMonths: number, initialValue: number, currentValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+    super(id, name, startMonths, initialValue, currentValue, yearlyRate, effectiveRate, taxRate, color);
+  }
+  // Method for calculating the value of the asset after n months
+  projectedValue(months: number, tax: boolean, monthlyInvestments: number[], sellOffs: number[]): (number | undefined)[] {
+    const values: (number | undefined)[] = [];
+    let value = 0; // Start with 0 until start month
+    let insertedValue = 0;
+    let taxAmount = 0;
 
-  constructor(id: string, name: string, initialValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
-    super(id, name, initialValue, yearlyRate, effectiveRate, taxRate, color);
+    // No need to push undefined at month 0 since we properly handle the start month
+
+    for (let i = 0; i <= months; i++) {
+      if (i < this.startMonths) {
+        // Before start month, asset doesn't exist
+        values.push(undefined);
+      } else if (i === this.startMonths) {
+        // At start month, initialize with current value
+        value = this.currentValue + monthlyInvestments[i];
+        insertedValue = this.initialValue + monthlyInvestments[i];
+        if (tax) {
+          taxAmount = (value - insertedValue) * this.taxRate;
+          values.push(value - taxAmount);
+        } else {
+          values.push(value);
+        }
+      } else {
+        // After start month, normal growth
+        // First check if anything is to be sold off
+        if (sellOffs[i] > insertedValue) {
+          const remainingSellOff = sellOffs[i] - insertedValue;
+          value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
+          insertedValue = 0
+        }
+        else {
+          value -= sellOffs[i]
+          insertedValue -= sellOffs[i]
+        }
+        value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
+        insertedValue += monthlyInvestments[i];
+        if (tax) {
+          taxAmount = (value - insertedValue) * this.taxRate;
+          values.push(value - taxAmount);
+        } else {
+          values.push(value);
+        }
+      }
+    }
+    return values;
   }
 }
 
@@ -78,13 +146,16 @@ export class Loan {
   private readonly monthlyInterestRate: number; // e.g., 0.05 for 5%
   monthlyPayment: number;
   years: number;
-  months: number; // Add this property
+  months: number;
   totalMonths: number;
   monthsDelayed: number;
+  startMonths: number;
   color: string;
   effectiveRate: boolean;
+  downPaymentPercentage: number;
+  stockSourceId: string | null;
 
-  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, color: string) {
+  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, startMonths: number = 0, color: string, downPaymentPercentage: number = 0, stockSourceId: string | null = null) {
     this.id = id;
     this.name = name;
     this.principal = principal;
@@ -93,10 +164,13 @@ export class Loan {
     this.months = months; // Initialize months
     this.totalMonths = years * 12 + months;
     this.monthsDelayed = monthsDelayed;
+    this.startMonths = startMonths;
     this.monthlyInterestRate = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.monthlyPayment = this.calculateMonthlyPayment();
     this.color = color;
     this.effectiveRate = effectiveRate;
+    this.downPaymentPercentage = downPaymentPercentage
+    this.stockSourceId = stockSourceId
   }
 
   calculateMonthlyPayment(): number {
@@ -126,35 +200,44 @@ export class Loan {
   }
   
   getSchedule(totalMonths: number): LoanSchedule {
-    // 1) roll balance through the deferment months
-    let balance = this.principal;
+    // 1) Initialize arrays with zeros - loan doesn't exist before start month
     const balances = new Array<number>(totalMonths + 1).fill(0);
-    balances[0] = balance;
-  
-    for (let m = 0; m < this.monthsDelayed && m < totalMonths; m++) {
+    const principalPaid = new Array<number>(totalMonths + 1).fill(0);
+    const interestPaid  = new Array<number>(totalMonths + 1).fill(0);
+
+    // If loan hasn't started yet, return empty schedule
+    if (this.startMonths >= totalMonths) {
+      return { balances, principalPaid, interestPaid };
+    }
+
+    // 2) Start the loan at the designated start month
+    let balance = this.principal;
+    balances[this.startMonths] = balance;
+
+    // 3) Roll balance through the deferment months (after start month)
+    const defermentEnd = this.startMonths + this.monthsDelayed;
+    for (let m = this.startMonths; m < defermentEnd && m < totalMonths; m++) {
       balance += balance * this.monthlyInterestRate;
       balances[m + 1] = balance;
     }
   
-    // 2) compute payment for the *remaining* months
+    // 4) Compute payment for the amortization period
     const n = this.totalMonths;
     const monthlyPmt = Loan.annuity(balance, this.monthlyInterestRate, n);
-    this.monthlyPayment = monthlyPmt;                    // keep for UI
-  
-    // 3) amortise
-    const principalPaid = new Array<number>(totalMonths).fill(0);
-    const interestPaid  = new Array<number>(totalMonths).fill(0);
-  
-    for (let k = 0; k < n && this.monthsDelayed + k < totalMonths; k++) {
-      const idx      = this.monthsDelayed + k;
+    this.monthlyPayment = monthlyPmt;
+
+    // 5) Amortize the loan
+    const amortizationStart = this.startMonths + this.monthsDelayed;
+    for (let k = 0; k < n && amortizationStart + k < totalMonths; k++) {
+      const idx = amortizationStart + k;
       const interest = balance * this.monthlyInterestRate;
-      const principal= Math.min(monthlyPmt - interest, balance);
+      const principal = Math.min(monthlyPmt - interest, balance);
+
+      interestPaid[idx + 1] = interest;
+      principalPaid[idx + 1] = principal;
   
-      interestPaid[idx]  = interest;
-      principalPaid[idx] = principal;
-  
-      balance           -= principal;
-      balances[idx + 1]  = balance;
+      balance -= principal;
+      balances[idx + 1] = balance;
       if (balance === 0) break;
     }
   

@@ -1,16 +1,14 @@
 # things to get done for the app:
 - Add actual date system for calculations (more realistic)
-- Add possibility of selecting part of asset value to be sold and used as loan deductible.
 - Add possibility of creating and saving scenarios for easier comparisons.
     - Add scenario names
 - Add explanations to different fields to better explain what they actually mean
 - Prettify the app (Have a more proper UI structure, choose fitting colors, perhaps even a nice logo or images of some kind)
 - Add some standard inputs with regard to normal norwegian laws so entering information about investments goes faster.
-- Display information regarding principal rate payments for loans more clearly (Perhaps in the graph tooltip?)
 - Add a type for a general asset (no preinput of information)
 - Add a visualization to differentiate between principal and rate payments for loans
-- Add a year parameter to timeline so it gets more managable to use
 - Disallow the addition of loans if the monthly income is lower than the monthly cost
 - Add option to divide remaining monthly income between several different stocks/assets
 - Add option of different compound/interest accrual frequencies (daily, monthly, etc)
 - Add option for adding large single-time purchases (cars for example) and whether these use stock sales to gather the money
+- Display amount of money that is invested in stocks/assets

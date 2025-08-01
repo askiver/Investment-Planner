@@ -96,8 +96,6 @@ export class Stock extends Asset {
     let insertedValue = 0;
     let taxAmount = 0;
 
-    // No need to push undefined at month 0 since we properly handle the start month
-
     for (let i = 0; i <= months; i++) {
       if (i < this.startMonths) {
         // Before start month, asset doesn't exist
@@ -114,16 +112,6 @@ export class Stock extends Asset {
         }
       } else {
         // After start month, normal growth
-        // First check if anything is to be sold off
-        if (sellOffs[i] > insertedValue) {
-          const remainingSellOff = sellOffs[i] - insertedValue;
-          value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
-          insertedValue = 0
-        }
-        else {
-          value -= sellOffs[i]
-          insertedValue -= sellOffs[i]
-        }
         value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
         insertedValue += monthlyInvestments[i];
         if (tax) {
@@ -133,6 +121,17 @@ export class Stock extends Asset {
           values.push(value);
         }
       }
+      // Handle sell-offs
+      // First check if anything is to be sold off
+        if (sellOffs[i] > insertedValue) {
+          const remainingSellOff = sellOffs[i] - insertedValue;
+          value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
+          insertedValue = 0
+        }
+        else {
+          value -= sellOffs[i]
+          insertedValue -= sellOffs[i]
+        }
     }
     return values;
   }
@@ -152,10 +151,10 @@ export class Loan {
   startMonths: number;
   color: string;
   effectiveRate: boolean;
-  downPaymentPercentage: number;
+  downPayment: number;
   stockSourceId: string | null;
 
-  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, startMonths: number = 0, color: string, downPaymentPercentage: number = 0, stockSourceId: string | null = null) {
+  constructor(id: string, name: string, principal: number, yearlyRate: number, effectiveRate: boolean, years: number, months: number, monthsDelayed: number = 0, startMonths: number = 0, color: string, downPayment: number = 0, stockSourceId: string | null = null) {
     this.id = id;
     this.name = name;
     this.yearlyRate = yearlyRate;
@@ -164,8 +163,8 @@ export class Loan {
     this.totalMonths = years * 12 + months;
     this.monthsDelayed = monthsDelayed;
     this.startMonths = startMonths;
-    this.downPaymentPercentage = downPaymentPercentage;
-    this.principal = principal * (1-downPaymentPercentage)
+    this.downPayment = downPayment;
+    this.principal = principal
     this.monthlyInterestRate = calculateMonthlyIncrease(yearlyRate, effectiveRate);
     this.monthlyPayment = this.calculateMonthlyPayment();
     this.color = color;

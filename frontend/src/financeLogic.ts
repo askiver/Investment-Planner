@@ -20,6 +20,7 @@ export interface AssetPaymentPlan {
   assetName: string,
   totalValues: (number | undefined)[],
   taxedValues: (number | undefined)[],
+  investedValues?: (number | undefined)[], // Optional, if the asset can be invested in
 }
 /**
 function totalLoanCost(sch: LoanSchedule): number {
@@ -63,8 +64,8 @@ export function calculateMonthlyPlan(
 
   // Calculate down payment amounts and create sell-off plans
   loans.forEach(loan => {
-    if (loan.downPaymentPercentage > 0 && loan.stockSourceId) {
-      const downPaymentAmount = loan.principal * (loan.downPaymentPercentage / 100);
+    if (loan.downPayment > 0 && loan.stockSourceId) {
+      const downPaymentAmount = loan.downPayment;
 
       // Add the down payment amount to the sell-off at the loan start month
       if (stockSellOffs[loan.stockSourceId]) {
@@ -122,6 +123,7 @@ export function calculateMonthlyPlan(
       assetName:   stock.name,
       totalValues: stock.projectedValue(totalMonths, false, investable, sellOffs),
       taxedValues: stock.projectedValue(totalMonths, true,  investable, sellOffs),
+      investedValues: investable
     });
   });
 

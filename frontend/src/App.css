@@ -254,6 +254,11 @@ input[type="radio"] {
   }
 }
 
+/* Tooltip styling to ensure it's on top */
+.recharts-tooltip-wrapper {
+  z-index: 1000 !important; /* Ensure tooltip is above all other elements */
+}
+
 /* Existing styles below (for logo, etc.) */
 #root {
   margin: 0;

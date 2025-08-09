@@ -52,34 +52,25 @@ export class Property extends Asset {
     const values: (number | undefined)[] = [];
     let value = 0; // Start with 0 until start month
     let insertedValue = 0;
-    let taxAmount = 0;
 
-    // No need to push undefined at month 0 since we properly handle the start month
+    // Need to push undefined at month 0 since we properly handle the start month
 
-    for (let i = 0; i <= months; i++) {
+    for (let i = 0; i < months; i++) {
       if (i < this.startMonths) {
         // Before start month, asset doesn't exist
         values.push(undefined);
-      } else if (i === this.startMonths) {
-        // At start month, initialize with current value
-        value = this.currentValue
-        insertedValue = this.initialValue;
-        if (tax) {
-          taxAmount = (value - insertedValue) * this.taxRate;
-          values.push(value - taxAmount);
-        } else {
-          values.push(value);
-        }
-      } else {
-        // After start month, normal growth
-        value = value * (1 + this.monthlyIncrease);
-        if (tax) {
-          taxAmount = (value - insertedValue) * this.taxRate;
-          values.push(value - taxAmount);
-        } else {
-          values.push(value);
-        }
+        continue
       }
+      if (i === this.startMonths) {
+        // At start month, initialize with current value
+      value = this.currentValue
+      insertedValue = this.initialValue;
+      }
+      else {
+        value *= (1 + this.monthlyIncrease)
+      }
+      const monthAmount = tax ? (value - (value-insertedValue) * (this.taxRate)) : value;
+      values.push(monthAmount);
     }
     return values;
   }
@@ -94,44 +85,38 @@ export class Stock extends Asset {
     const values: (number | undefined)[] = [];
     let value = 0; // Start with 0 until start month
     let insertedValue = 0;
-    let taxAmount = 0;
 
-    for (let i = 0; i <= months; i++) {
+    for (let i = 0; i < months; i++) {
       if (i < this.startMonths) {
         // Before start month, asset doesn't exist
         values.push(undefined);
-      } else if (i === this.startMonths) {
-        // At start month, initialize with current value
-        value = this.currentValue + monthlyInvestments[i];
-        insertedValue = this.initialValue + monthlyInvestments[i];
-        if (tax) {
-          taxAmount = (value - insertedValue) * this.taxRate;
-          values.push(value - taxAmount);
-        } else {
-          values.push(value);
-        }
-      } else {
-        // After start month, normal growth
-        value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
-        insertedValue += monthlyInvestments[i];
-        if (tax) {
-          taxAmount = (value - insertedValue) * this.taxRate;
-          values.push(value - taxAmount);
-        } else {
-          values.push(value);
-        }
+        continue
       }
-      // Handle sell-offs
-      // First check if anything is to be sold off
-        if (sellOffs[i] > insertedValue) {
-          const remainingSellOff = sellOffs[i] - insertedValue;
-          value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
-          insertedValue = 0
-        }
-        else {
-          value -= sellOffs[i]
-          insertedValue -= sellOffs[i]
-        }
+      if (i === this.startMonths) {
+      // At start month, initialize with current value
+      // For now, do not consider monthly investments the first month
+      value = this.currentValue;
+      insertedValue = this.initialValue;
+      } else {
+      // After start month, normal growth
+      value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
+      insertedValue += monthlyInvestments[i];
+    }
+
+    // Handle sell-offs
+    // First check if anything is to be sold off
+      if (sellOffs[i] > insertedValue) {
+        const remainingSellOff = sellOffs[i] - insertedValue;
+        value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
+        insertedValue = 0
+      }
+      else {
+        value -= sellOffs[i]
+        insertedValue -= sellOffs[i]
+      }
+      // Calculate the value after tax if applicable
+      const monthAmount = tax ? (value - (value-insertedValue) * (this.taxRate)) : value;
+      values.push(monthAmount);
     }
     return values;
   }
@@ -200,9 +185,9 @@ export class Loan {
   
   getSchedule(totalMonths: number): LoanSchedule {
     // 1) Initialize arrays with zeros - loan doesn't exist before start month
-    const balances = new Array<number>(totalMonths + 1).fill(0);
-    const principalPaid = new Array<number>(totalMonths + 1).fill(0);
-    const interestPaid  = new Array<number>(totalMonths + 1).fill(0);
+    const balances = new Array<number>(totalMonths).fill(0);
+    const principalPaid = new Array<number>(totalMonths).fill(0);
+    const interestPaid  = new Array<number>(totalMonths).fill(0);
 
     // If loan hasn't started yet, return empty schedule
     if (this.startMonths >= totalMonths) {
@@ -217,7 +202,7 @@ export class Loan {
     const defermentEnd = this.startMonths + this.monthsDelayed;
     for (let m = this.startMonths; m < defermentEnd && m < totalMonths; m++) {
       balance += balance * this.monthlyInterestRate;
-      balances[m + 1] = balance;
+      balances[m] = balance;
     }
   
     // 4) Compute payment for the amortization period
@@ -227,16 +212,16 @@ export class Loan {
 
     // 5) Amortize the loan
     const amortizationStart = this.startMonths + this.monthsDelayed;
-    for (let k = 0; k < n && amortizationStart + k < totalMonths; k++) {
+    for (let k = 1; k < n && amortizationStart + k < totalMonths; k++) {
       const idx = amortizationStart + k;
       const interest = balance * this.monthlyInterestRate;
       const principal = Math.min(monthlyPmt - interest, balance);
 
-      interestPaid[idx + 1] = interest;
-      principalPaid[idx + 1] = principal;
+      interestPaid[idx] = interest;
+      principalPaid[idx] = principal;
   
       balance -= principal;
-      balances[idx + 1] = balance;
+      balances[idx] = balance;
       if (balance === 0) break;
     }
   

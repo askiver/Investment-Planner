@@ -50,11 +50,11 @@ export function calculateMonthlyPlan(
 ): MonthlyPlan {
 
   /* --------------- PASS 0: overall timeline length --------------- */
-  const totalMonths = months
+  const totalMonths = months + 1; // Add +1 to account for month 0
 
   // Add +1 to account for month 0
-  const netWorth = new Array<number>(totalMonths + 1).fill(0);
-  const netWorthTaxed = new Array<number>(totalMonths + 1).fill(0);
+  const netWorth = new Array<number>(totalMonths).fill(0);
+  const netWorthTaxed = new Array<number>(totalMonths).fill(0);
 
   /* --------------- PASS 1: calculate stock sell-offs for loan down payments ------------- */
   const stockSellOffs: Record<string, number[]> = {};

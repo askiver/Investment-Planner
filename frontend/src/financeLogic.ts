@@ -1,23 +1,24 @@
-import { Loan, Stock, Property } from './models';
+import { Loan, Stock, Property, Asset } from './models';
 
 export interface MonthlyPlan {
   loans: LoanPaymentPlan[]; // payment per loan
   stockInvestments: AssetPaymentPlan[]; // total invested in stocks
   propertyInvestments: AssetPaymentPlan[]; // Total invested in property
   stockSellOffs?: Record<string, number[]>; // Track stock selloffs by stock ID
+  netWorth: number[];
+  netWorthTaxed: number[];
 }
 
 export interface LoanPaymentPlan {
-  loanName: string,
-  monthlyCost: number,
+  loan: Loan,
   totalCost: number,
-  principals: number[],   // Running balances for each month
-  ratePayments: number[], // Interest paid each month
-  principalPayments?: number[], // Principal paid each month (calculated from the loan schedule)
+  principals: (number | undefined)[],   // Running balances for each month
+  ratePayments: (number | undefined)[], // Interest paid each month
+  principalPayments: (number | undefined)[], // Principal paid each month (calculated from the loan schedule)
 }
 
 export interface AssetPaymentPlan {
-  assetName: string,
+  asset: Asset,
   totalValues: (number | undefined)[],
   taxedValues: (number | undefined)[],
   investedValues?: (number | undefined)[], // Optional, if the asset can be invested in
@@ -49,10 +50,11 @@ export function calculateMonthlyPlan(
 ): MonthlyPlan {
 
   /* --------------- PASS 0: overall timeline length --------------- */
-  const maxLoanStart = loans.length ? Math.max(...loans.map(l => l.startMonths + l.monthsDelayed)) : 0;
-  const maxAssetStart = [...stocks, ...properties].length ?
-    Math.max(...[...stocks, ...properties].map(a => a.startMonths)) : 0;
-  const totalMonths = Math.max(months, months + maxLoanStart, months + maxAssetStart);
+  const totalMonths = months
+
+  // Add +1 to account for month 0
+  const netWorth = new Array<number>(totalMonths + 1).fill(0);
+  const netWorthTaxed = new Array<number>(totalMonths + 1).fill(0);
 
   /* --------------- PASS 1: calculate stock sell-offs for loan down payments ------------- */
   const stockSellOffs: Record<string, number[]> = {};
@@ -82,7 +84,9 @@ export function calculateMonthlyPlan(
     loans: [],
     stockInvestments: [],
     propertyInvestments: [],
-    stockSellOffs
+    stockSellOffs,
+    netWorth,
+    netWorthTaxed,
   };
 
   loans.forEach(loan => {
@@ -92,9 +96,12 @@ export function calculateMonthlyPlan(
     sch.principalPaid.forEach((v, i) => principalOut[i] += v);
     sch.interestPaid .forEach((v, i) => interestOut [i] += v);
 
+    // Add loan principal to net worth
+    sch.balances.forEach((v, i) => netWorth[i] -= (v ?? 0));
+    sch.balances.forEach((v,i) => netWorthTaxed[i] -= (v ?? 0))
+
     plans.loans.push({
-      loanName:   loan.name,
-      monthlyCost: 0,                 // kept only for UI – not used in math
+      loan:   loan,
       totalCost: loan.monthlyPayment * loan.totalMonths,
       principals: sch.balances,
       ratePayments: sch.interestPaid,
@@ -119,20 +126,38 @@ export function calculateMonthlyPlan(
   // Handle all stock investments
   stocks.forEach(stock => {
     const sellOffs = stockSellOffs[stock.id] || new Array<number>(totalMonths).fill(0);
+    // Create individualized invested values for this stock
+    const stockInvestedValues = investable.map(val => val / Math.max(1, stocks.length));
+
+    const stockValues = stock.projectedValue(totalMonths, false, stockInvestedValues, sellOffs);
+    const stockValuesTaxed = stock.projectedValue(totalMonths, true, stockInvestedValues, sellOffs);
+
+    // Add to net worth
+    stockValues.forEach((v, i) => netWorth[i] += (v ?? 0));
+    stockValuesTaxed.forEach((v, i) => netWorthTaxed[i] += (v ?? 0));
+
     plans.stockInvestments.push({
-      assetName:   stock.name,
-      totalValues: stock.projectedValue(totalMonths, false, investable, sellOffs),
-      taxedValues: stock.projectedValue(totalMonths, true,  investable, sellOffs),
-      investedValues: investable
+      asset:   stock,
+      totalValues: stockValues,
+      taxedValues: stockValuesTaxed,
+      investedValues: stockInvestedValues
     });
   });
 
   // Handle all property investments
   properties.forEach(property => {
+    
+    const propertyValues = property.projectedValue(totalMonths, false);
+    const propertyValuesTaxed = property.projectedValue(totalMonths, true);
+    
+    // Add to net worth
+    propertyValues.forEach((v, i) => netWorth[i] += (v ?? 0));
+    propertyValuesTaxed.forEach((v, i) => netWorthTaxed[i] += (v ?? 0));
+    
     plans.propertyInvestments.push({
-      assetName:   property.name,
-      totalValues: property.projectedValue(totalMonths, false),
-      taxedValues: property.projectedValue(totalMonths, true),
+      asset:   property,
+      totalValues: propertyValues,
+      taxedValues: propertyValuesTaxed,
     });
   });
 

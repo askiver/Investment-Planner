@@ -9,12 +9,6 @@ describe('calculateMonthlyPlan', () => {
     vi.setSystemTime(new Date('2025-01-01'));
   });
 
-  it("Loan payment plans", () => {
-    const normalRateLoan = makeLoan({effectiveRate:false});
-    const effectiveRateLoan = makeLoan({effectiveRate:true});
-    const delayedLoan = makeLoan({monthsDelayed:});
-  })
-
   it('computes net worth and loan amortization over 24 months', () => {
     const loans = [makeLoan({})];
     const stocks = [makeStock()];

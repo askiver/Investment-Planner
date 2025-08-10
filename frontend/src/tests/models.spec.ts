@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { makeLoan, makeStock, makeProperty } from '@/tests/factories';
+import { describe, it, expect } from 'vitest';
+import { makeLoan } from '@/tests/factories';
 
 describe('Check loan plan calculations', () => {
     it("Normal rate loan amortization", () => {

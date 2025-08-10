@@ -6,7 +6,6 @@ type InvestmentListProps = {
   handleInvestmentRemove: (id: string) => void;
   handleInvestmentEdit: (id: string, field: string, value: string | number | boolean) => void;
   plan: MonthlyPlan;
-  loans: Loan[];
   stocks: Stock[];
 };
 
@@ -15,7 +14,6 @@ const InvestmentList = ({
   handleInvestmentRemove,
   handleInvestmentEdit,
   plan,
-  loans,
   stocks
 }: InvestmentListProps) => {
   return (
@@ -167,7 +165,7 @@ const InvestmentList = ({
                     Monthly Payment: ${inv.monthlyPayment.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     {/* Show total loan cost if available in plan */}
                     {(() => {
-                      const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                      const planLoan = plan.loans.find(l => l.loan.name === inv.name);
                       return planLoan ? (
                         <span key={`loan-cost-${inv.id}`} style={{ marginLeft: 16 }}>
                           Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -231,7 +229,7 @@ const InvestmentList = ({
                     Monthly Payment: ${inv.monthlyPayment.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     {/* Show total loan cost if available in plan */}
                     {(() => {
-                      const planLoan = plan.loans.find(l => l.loanName === inv.name);
+                      const planLoan = plan.loans.find(l => l.loan.name === inv.name);
                       return planLoan ? (
                         <span key={`loan-cost-${inv.id}`} style={{ marginLeft: 16 }}>
                           Total Cost: {planLoan.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}

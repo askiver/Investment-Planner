@@ -47,30 +47,15 @@ export class Property extends Asset {
     super(id, name, startMonths, initialValue, currentValue, yearlyRate, effectiveRate, taxRate, color);
   }
 
-  // Method for calculating the value of the asset after n months
-  projectedValue(months: number, tax: boolean): (number | undefined)[] {
-    const values: (number | undefined)[] = [];
-    let value = 0; // Start with 0 until start month
-    let insertedValue = 0;
+  // Method for calculating the value of a property after n months
+  projectedValue(months: number, tax: boolean): number[] {
+    const values = new Array<number>(months).fill(0);
+    let value = this.currentValue;
+    const insertedValue = this.initialValue;
 
-    // Need to push undefined at month 0 since we properly handle the start month
-
-    for (let i = 0; i < months; i++) {
-      if (i < this.startMonths) {
-        // Before start month, asset doesn't exist
-        values.push(undefined);
-        continue
-      }
-      if (i === this.startMonths) {
-        // At start month, initialize with current value
-      value = this.currentValue
-      insertedValue = this.initialValue;
-      }
-      else {
-        value *= (1 + this.monthlyIncrease)
-      }
-      const monthAmount = tax ? (value - (value-insertedValue) * (this.taxRate)) : value;
-      values.push(monthAmount);
+    for (let i = this.startMonths; i < months; i++) {
+      values[i] = tax ? (value - (value - insertedValue) * (this.taxRate)) : value;
+      value *= (1 + this.monthlyIncrease);
     }
     return values;
   }
@@ -81,42 +66,25 @@ export class Stock extends Asset {
     super(id, name, startMonths, initialValue, currentValue, yearlyRate, effectiveRate, taxRate, color);
   }
   // Method for calculating the value of the asset after n months
-  projectedValue(months: number, tax: boolean, monthlyInvestments: number[], sellOffs: number[]): (number | undefined)[] {
-    const values: (number | undefined)[] = [];
-    let value = 0; // Start with 0 until start month
-    let insertedValue = 0;
+  projectedValue(months: number, tax: boolean, monthlyInvestments: number[], sellOffs: number[]): number[] {
+    const values = new Array<number>(months).fill(0);
+    let value = this.currentValue;
+    let insertedValue = this.initialValue;
 
     for (let i = 0; i < months; i++) {
-      if (i < this.startMonths) {
-        // Before start month, asset doesn't exist
-        values.push(undefined);
-        continue
-      }
-      if (i === this.startMonths) {
-      // At start month, initialize with current value
-      // For now, do not consider monthly investments the first month
-      value = this.currentValue;
-      insertedValue = this.initialValue;
-      } else {
-      // After start month, normal growth
+      values[i] = tax ? (value - (value - insertedValue) * (this.taxRate)) : value;
       value = value * (1 + this.monthlyIncrease) + monthlyInvestments[i];
       insertedValue += monthlyInvestments[i];
-    }
 
-    // Handle sell-offs
-    // First check if anything is to be sold off
+      // Handle sell-offs
       if (sellOffs[i] > insertedValue) {
-        const remainingSellOff = sellOffs[i] - insertedValue;
-        value -= (insertedValue + (1+this.taxRate)* remainingSellOff)
-        insertedValue = 0
+          const remainingSellOff = sellOffs[i] - insertedValue;
+          value -= (insertedValue + (1 + this.taxRate) * remainingSellOff);
+          insertedValue = 0;
+      } else {
+          value -= sellOffs[i];
+          insertedValue -= sellOffs[i];
       }
-      else {
-        value -= sellOffs[i]
-        insertedValue -= sellOffs[i]
-      }
-      // Calculate the value after tax if applicable
-      const monthAmount = tax ? (value - (value-insertedValue) * (this.taxRate)) : value;
-      values.push(monthAmount);
     }
     return values;
   }

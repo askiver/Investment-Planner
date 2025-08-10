@@ -28,33 +28,33 @@ export const getChartData = (
 
     // Properties - only include if they have started and have defined values
     plan.propertyInvestments.forEach(propertyPlan => {
-      const property = properties.find(p => p.name === propertyPlan.assetName);
+      const property = properties.find(p => p.name === propertyPlan.asset.name);
       const val = useTaxed ? propertyPlan.taxedValues[m] : propertyPlan.totalValues[m];
       // Only include in chart if the property has started (val is not undefined) and has value > 0
       if (property && val !== undefined && val > 0) {
-        entry[propertyPlan.assetName] = val;
+        entry[propertyPlan.asset.name] = val;
         runningTotal += val;
       }
     });
 
     // Stocks - only include if they have started and have defined values
     plan.stockInvestments.forEach(stockPlan => {
-      const stock = stocks.find(s => s.name === stockPlan.assetName);
+      const stock = stocks.find(s => s.name === stockPlan.asset.name);
       const val = useTaxed ? stockPlan.taxedValues[m] : stockPlan.totalValues[m];
       // Only include in chart if the stock has started (val is not undefined) and has value > 0
       if (stock && val !== undefined && val > 0) {
-        entry[stockPlan.assetName] = val;
+        entry[stockPlan.asset.name] = val;
         runningTotal += val;
       }
     });
 
     // Loans - only include if they have started and have non-zero principal
     plan.loans.forEach(loanPlan => {
-      const loan = loans.find(l => l.name === loanPlan.loanName);
+      const loan = loans.find(l => l.name === loanPlan.loan.name);
       const principal = loanPlan.principals[m] ?? 0;
       // Only include in chart if the loan has started (m >= startMonths) and has principal
       if (loan && m >= loan.startMonths && principal > 0) {
-        entry[loanPlan.loanName] = -principal; // Negative for stacking below x-axis
+        entry[loanPlan.loan.name] = -principal; // Negative for stacking below x-axis
         loanTotal += principal;
       }
     });
@@ -65,19 +65,19 @@ export const getChartData = (
 
   // Get property names that appear in the data
   const propertyNames = plan.propertyInvestments
-    .map(p => p.assetName)
+    .map(p => p.asset.name)
     .filter(name => data.some(entry => entry[name] !== undefined && entry[name] > 0));
 
   // Get stock names that appear in the data
   const stockNames = plan.stockInvestments
-    .map(s => s.assetName)
+    .map(s => s.asset.name)
     .filter(name => data.some(entry => entry[name] !== undefined && entry[name] > 0));
 
   // Order assets with properties first, then stocks
   const assetKeys = [...propertyNames, ...stockNames];
 
   const loanKeys = plan.loans
-    .map(l => l.loanName)
+    .map(l => l.loan.name)
     .filter(name => data.some(entry => entry[name] !== undefined && entry[name] < 0));
 
   return { data, assetKeys, loanKeys };

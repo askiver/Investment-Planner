@@ -93,7 +93,6 @@ export default function App() {
           handleInvestmentRemove={handleInvestmentRemove}
           handleInvestmentEdit={handleInvestmentEdit}
           plan={plan}
-          loans={loans}
           stocks={stocks}
         />
       </main>

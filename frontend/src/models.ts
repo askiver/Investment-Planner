@@ -180,17 +180,18 @@ export class Loan {
 
     // 5) Amortize the loan
     const amortizationStart = this.startMonths + this.monthsDelayed;
-    for (let k = 1; k < n && amortizationStart + k < totalMonths; k++) {
+    for (let k = 0; k < n && amortizationStart + k < totalMonths; k++) {
       const idx = amortizationStart + k;
       const interest = balance * this.monthlyInterestRate;
       const principal = Math.min(monthlyPmt - interest, balance);
+
+      balances[idx] = balance
 
       interestPaid[idx] = interest;
       principalPaid[idx] = principal;
   
       balance -= principal;
-      balances[idx] = balance;
-      if (balance === 0) break;
+      if (balance <= 0) break;
     }
   
     return { balances, principalPaid, interestPaid };

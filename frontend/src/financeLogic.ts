@@ -12,16 +12,16 @@ export interface MonthlyPlan {
 export interface LoanPaymentPlan {
   loan: Loan,
   totalCost: number,
-  principals: (number | undefined)[],   // Running balances for each month
-  ratePayments: (number | undefined)[], // Interest paid each month
-  principalPayments: (number | undefined)[], // Principal paid each month (calculated from the loan schedule)
+  principals: number[],   // Running balances for each month
+  ratePayments: number[], // Interest paid each month
+  principalPayments: number[], // Principal paid each month (calculated from the loan schedule)
 }
 
 export interface AssetPaymentPlan {
   asset: Asset,
-  totalValues: (number | undefined)[],
-  taxedValues: (number | undefined)[],
-  investedValues?: (number | undefined)[], // Optional, if the asset can be invested in
+  totalValues: number[],
+  taxedValues: number[],
+  investedValues?: number[], // Optional, if the asset can be invested in
 }
 /**
 function totalLoanCost(sch: LoanSchedule): number {
@@ -37,7 +37,9 @@ function totalLoanCost(sch: LoanSchedule): number {
  * @param income - The monthly personal income
  * @param loans - Array of Loan objects
  * @param stocks - Array of Stock objects
+ * @param properties
  * @param months - Number of months to simulate
+ * @param yearlyInflation
  * @returns Array of MonthlyPlan objects, one per month
  */
 export function calculateMonthlyPlan(

@@ -9,16 +9,22 @@ describe('calculateMonthlyPlan', () => {
     vi.setSystemTime(new Date('2025-01-01'));
   });
 
+  it("Loan payment plans", () => {
+    const normalRateLoan = makeLoan({effectiveRate:false});
+    const effectiveRateLoan = makeLoan({effectiveRate:true});
+    const delayedLoan = makeLoan({monthsDelayed:});
+  })
+
   it('computes net worth and loan amortization over 24 months', () => {
-    const loans = [makeLoan()];
+    const loans = [makeLoan({})];
     const stocks = [makeStock()];
-    const props  = [makeProperty()];
+    const properties  = [makeProperty()];
 
     const plan = calculateMonthlyPlan(
-      10_000,           // monthly income
+      30_000,           // monthly income
       loans,
       stocks,
-      props,
+      properties,
       24,               // months
       0.025             // inflation
     );

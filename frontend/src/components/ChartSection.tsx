@@ -129,7 +129,7 @@ export default function ChartSection({
     const usedLoans = new Set<string>();
     const maxMonths = timelineYears * 12 + 1;
 
-    for (let m = 0; m <= maxMonths; m++) {
+    for (let m = 0; m < maxMonths; m++) {
       const entry: ChartRow = { month: m, Total: 0 };
 
       // Properties
@@ -159,7 +159,7 @@ export default function ChartSection({
         const name = l.loan.name;
         if (!loanNames.has(name)) continue;
         const principal = toNum(l.principals[m]);
-        if (m >= l.loan.startMonths && principal >= 0) {
+        if (m >= l.loan.startMonths && principal > 0) {
           entry[name] = -principal;
           usedLoans.add(name);
         }

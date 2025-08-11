@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { makeLoan } from '@/tests/factories';
+import {makeLoan, makeProperty, makeStock} from '@/tests/factories';
 
 describe('Check loan plan calculations', () => {
     it("Normal rate loan amortization", () => {
@@ -39,4 +39,38 @@ describe('Check loan plan calculations', () => {
 
         expect(totalInterest + totalPrincipal).toBeCloseTo(5_463_405.88, 1);
     })
+})
+
+describe('Check stock plan calculations', () => {
+    const totalMonths = 121;
+    const static_stock = makeStock()
+    const monthly_investments = new Array<number>(totalMonths).fill(0);
+    const sellOffs = new Array<number>(totalMonths).fill(0);
+    const returns = static_stock.projectedValue(totalMonths, false, monthly_investments, sellOffs);
+
+    it("Stock investment without monthly contributions", () => {
+
+        expect(returns[12]).toBeCloseTo(107_000.00, 2);
+        expect(returns[109]).toBeCloseTo(184_885.41, 2);
+
+    })
+    it("Stock investment with monthly contributions", () => {
+        const monthly_investments = new Array<number>(totalMonths).fill(1000);
+        const returns = static_stock.projectedValue(totalMonths, false, monthly_investments, sellOffs);
+
+        expect(returns[12]).toBeCloseTo(119_380.30, 2);
+        expect(returns[109]).toBeCloseTo(335_014.93, 2);
+    })
+})
+
+describe('Check property plan calculations', () => {
+
+    it("Property investment", () => {
+      const totalMonths = 121;
+      const property = makeProperty()
+      const returns = property.projectedValue(totalMonths, false);
+
+        expect(returns[12]).toBeCloseTo(4_120_000.00, 2);
+        expect(returns[109]).toBeCloseTo(5_231_964.43, 2);
+  })
 })

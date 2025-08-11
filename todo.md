@@ -13,3 +13,5 @@
 - Add option for adding large single-time purchases (cars for example) and whether these use stock sales to gather the money
 - Display amount of money that is invested in stocks/assets
 - Add wealth tax calculation
+- Add correct calculations for interest when loans are deferred. Currently this is added to the principal, but this is not correct.
+- Set a fixed size for the graph tooltip

@@ -169,19 +169,40 @@ export class Loan {
     // 3) Roll balance through the deferment months (after start month)
     const defermentEnd = this.startMonths + this.monthsDelayed;
     for (let m = this.startMonths; m < defermentEnd && m < totalMonths; m++) {
-      balance += balance * this.monthlyInterestRate;
       balances[m] = balance;
+      balance += balance * this.monthlyInterestRate;
     }
   
     // 4) Compute payment for the amortization period
-    const n = this.totalMonths;
-    const monthlyPmt = Loan.annuity(balance, this.monthlyInterestRate, n);
+    const monthlyPmt = Loan.annuity(balance, this.monthlyInterestRate, this.totalMonths);
     this.monthlyPayment = monthlyPmt;
 
     // 5) Amortize the loan
-    const amortizationStart = this.startMonths + this.monthsDelayed;
-    for (let k = 0; k < n && amortizationStart + k < totalMonths; k++) {
-      const idx = amortizationStart + k;
+    // Start by paying accrued interest from the deferment period
+    let k = this.startMonths + this.monthsDelayed;
+    while (balance > this.principal && k < totalMonths) {
+
+      balances[k] = balance;
+
+      const interest = balance * this.monthlyInterestRate;
+      const amtAfterInterest = monthlyPmt - interest;
+
+      if (balance - amtAfterInterest > this.principal) {
+        interestPaid[k] = monthlyPmt;
+        balance -= amtAfterInterest;
+      }
+
+      else {
+        const remaining = -1 *((balance - this.principal) - amtAfterInterest);
+        balance -= remaining;
+        interestPaid[k] = monthlyPmt - remaining;
+        principalPaid[k] = remaining;
+      }
+      k += 1;
+    }
+
+    for (k; k < this.totalMonths + this.monthsDelayed && k < totalMonths; k++) {
+      const idx = k;
       const interest = balance * this.monthlyInterestRate;
       const principal = Math.min(monthlyPmt - interest, balance);
 

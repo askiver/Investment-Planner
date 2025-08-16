@@ -1,5 +1,5 @@
 import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Loan, Property, Stock } from '@/models';
+import { Loan, Property, Stock } from '@/models/models';
 import type { MonthlyPlan } from '@/financeLogic';
 import CustomTooltip from './CustomTooltip';
 import { useMemo } from 'react';

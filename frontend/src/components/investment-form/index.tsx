@@ -1,11 +1,11 @@
 // src/components/investment-form/index.tsx
 import { useState } from 'react';
-import type { InvestmentType } from './types';
+import type { InvestmentType } from '../forms/types';
 import PropertyForm from './forms/PropertyForm';
 import StockForm from './forms/StockForm';
 import LoanForm from './forms/LoanForm';
 import StudentLoanForm from './forms/StudentLoanForm';
-import type { Property, Stock, Loan, StudentLoan } from '@/models';
+import type { Property, Stock, Loan, StudentLoan } from '@/models/models';
 import './investment-form.css';
 
 type Props = {

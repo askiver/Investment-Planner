@@ -1,8 +1,8 @@
 // src/components/investment-form/builders.ts
-import { Property, Stock, Loan, StudentLoan } from '@/models';
+import { Property, Stock, Loan, StudentLoan } from '@/models/models';
 import type {
   PropertyFormValues, StockFormValues, LoanFormValues, StudentLoanFormValues
-} from './types';
+} from '../forms/types';
 import { expandedColors } from '@/utils/colorPalette';
 
 const pickColor = (c?: string) =>

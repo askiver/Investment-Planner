@@ -1,4 +1,4 @@
-import { Property, Stock, Loan } from '../models';
+import { Property, Stock, Loan } from '../models/models';
 import type { MonthlyPlan } from '../financeLogic';
 
 export type ChartData = {

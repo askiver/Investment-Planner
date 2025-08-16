@@ -2,7 +2,7 @@
 import type {
   InvestmentType, PropertyFormValues, StockFormValues,
   LoanFormValues, StudentLoanFormValues
-} from './types';
+} from '../forms/types';
 
 export const propertyDefaults: PropertyFormValues = {
   name: 'Standard Apartment',

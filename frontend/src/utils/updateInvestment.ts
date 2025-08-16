@@ -1,5 +1,5 @@
 // src/utils/updateInvestment.ts
-import { Property, Stock, Loan, StudentLoan } from '../models';
+import { Property, Stock, Loan, StudentLoan } from '../models/models';
 
 export function updateInvestment(
   inv: Property | Stock | Loan | StudentLoan,

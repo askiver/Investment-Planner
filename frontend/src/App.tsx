@@ -1,7 +1,7 @@
 // src/App.tsx
 import { useMemo, useCallback, useReducer, useState } from 'react';
 import './App.css';
-import { Property, Stock, Loan, StudentLoan } from './models';
+import { Property, Stock, Loan, StudentLoan } from './models/models';
 import { calculateMonthlyPlan, type MonthlyPlan } from './financeLogic';
 
 // Components

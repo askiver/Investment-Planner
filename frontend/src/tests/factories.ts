@@ -1,5 +1,5 @@
 // tests/factories.ts
-import { Loan, Property, Stock } from '@/models';
+import { Loan, Property, Stock } from '@/models/models';
 
 type LoanOverrides = Partial<{
   id: string;

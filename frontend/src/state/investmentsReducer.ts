@@ -1,5 +1,5 @@
 // src/state/investmentsReducer.ts
-import { Property, Stock, Loan, StudentLoan } from '@/models';
+import { Property, Stock, Loan, StudentLoan } from '@/models/models';
 import { updateInvestment } from '@/utils/updateInvestment';
 
 export type InvestmentAny = Property | Stock | Loan | StudentLoan;

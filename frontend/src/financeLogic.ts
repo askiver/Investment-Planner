@@ -1,4 +1,4 @@
-import { Loan, Stock, Property, Asset } from './models';
+import { Loan, Stock, Property, Asset } from './models/models';
 
 export interface MonthlyPlan {
   loans: LoanPaymentPlan[]; // payment per loan

@@ -1,5 +1,5 @@
 // src/components/investment-edit/InvestmentList.tsx
-import { Property, Stock, Loan, StudentLoan } from '@/models';
+import { Property, Stock, Loan, StudentLoan } from '@/models/models';
 import type { MonthlyPlan } from '@/financeLogic';
 import PropertyRow from './rows/PropertyRow';
 import StockRow from './rows/StockRow';

@@ -1,7 +1,7 @@
 // src/components/CustomTooltip.tsx
 import type { TooltipProps } from 'recharts';
-import type { MonthlyPlan } from '../financeLogic';
-import type { Stock } from '../models/models';
+import type { MonthlyPlan } from '@/financeLogic';
+import type { Stock } from '@/models/models';
 import type {NameType, ValueType} from "recharts/types/component/DefaultTooltipContent";
 
 type ExtraProps = {

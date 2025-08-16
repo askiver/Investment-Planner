@@ -8,9 +8,9 @@ import { calculateMonthlyPlan, type MonthlyPlan } from './financeLogic';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import SettingsPanel from './components/SettingsPanel';
-import InvestmentForm from './components/InvestmentForm';
+import InvestmentForm from './components/investment-form';
 import ChartSection from './components/ChartSection';
-import InvestmentList from './components/InvestmentList';
+import InvestmentList from './components/investment-edit';
 
 // Utils
 import { expandedColors } from './utils/colorPalette';
@@ -24,7 +24,7 @@ export default function App() {
   const [income, setIncome] = useState('10000');
   const [inflation, setInflation] = useState('2.5');
 
-  // --- derived slices (cheap & stable) ---
+  // --- derived slices ---
   const { loans, stocks, properties } = useMemo(() => {
     const loans = investments.filter(i => i instanceof Loan) as Loan[];
     const stocks = investments.filter(i => i instanceof Stock) as Stock[];
@@ -32,14 +32,21 @@ export default function App() {
     return { loans, stocks, properties };
   }, [investments]);
 
-  // --- plan (avoid recompute every render) ---
+  // --- plan ---
   const plan: MonthlyPlan = useMemo(() => {
     const incomeNum = parseFloat(income) || 0;
     const inflationNum = (parseFloat(inflation) || 0) / 100;
-    return calculateMonthlyPlan(incomeNum, loans, stocks, properties, timelineYears * 12, inflationNum);
+    return calculateMonthlyPlan(
+      incomeNum,
+      loans,
+      stocks,
+      properties,
+      timelineYears * 12,
+      inflationNum
+    );
   }, [income, inflation, loans, stocks, properties, timelineYears]);
 
-  // --- stable handlers (children don't re-render unnecessarily) ---
+  // --- handlers ---
   const handleAddInvestment = useCallback((newInv: InvestmentAny) => {
     dispatch({ type: 'add', payload: newInv } satisfies InvestmentAction);
   }, []);

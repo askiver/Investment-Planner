@@ -1,0 +1,84 @@
+/* src/components/investment-edit/investment-edit.css */
+
+.investments-section { /* your card already exists; keep as-is */ }
+
+/* list container */
+.investment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+/* each row box */
+.investment-row {
+  border: 1px solid #374151;         /* slate-700 */
+  border-radius: 10px;
+  padding: 10px;
+  background: #111827;               /* slate-900 */
+}
+
+/* header */
+.investment-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #e5e7eb;                     /* slate-200 */
+}
+.investment-row__title { font-weight: 700; }
+
+/* inline grid of fields */
+.inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+/* label + control */
+.inline-field {
+  display: grid;
+  gap: 4px;
+  min-width: 120px;
+}
+.inline-field label {
+  font-weight: 600;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+
+/* inputs/selects unified */
+.inline-field input,
+.inline-field select {
+  padding: 8px 10px;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  background: #0b1220;
+  color: #f9fafb;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* color input small */
+.inline-field input[type="color"] {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* tiny helper widths (if you want tighter sizing) */
+.w-60  { min-width: 80px;  max-width: 100px; }
+.w-80  { min-width: 100px; max-width: 120px; }
+.w-100 { min-width: 120px; max-width: 160px; }
+
+/* radio group */
+.rate-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #e5e7eb;
+}

@@ -110,7 +110,7 @@ export default function CustomTooltip(
                 {stockPlan.investedValues?.[month] != null && (
                   <div>Monthly Investment: {fmt(stockPlan.investedValues[month] || 0)}</div>
                 )}
-                {sellOff > 0 && <div>Sold this month: {fmt(sellOff)}</div>}
+                {sellOff > 0 && <div>Sold this month: {fmt(-sellOff)}</div>}
               </div>
             )}
           </div>

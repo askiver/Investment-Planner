@@ -1,3 +1,5 @@
+import './investment-form/investment-form.css';
+
 type SettingsPanelProps = {
   timelineYears: number;
   setTimelineYears: (years: number) => void;
@@ -18,7 +20,7 @@ const SettingsPanel = ({
   return (
     <section className="card settings-container">
       <h2>Portfolio Settings</h2>
-      <div className="settings-form">
+      <div className="settings-form, investment-form">
         <div className="form-group">
           <label>Timeline (years):</label>
           <input

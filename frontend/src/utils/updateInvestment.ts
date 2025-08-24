@@ -9,14 +9,14 @@ export function updateInvestment(
   // Keep your existing per-type logic here, unchanged initially.
   // Later, you can refactor each block safely.
   if (inv instanceof Property) {
-    if (field === 'name') return new Property(inv.id, String(value), inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-    if (field === 'startMonths') return new Property(inv.id, inv.name, parseInt(String(value)), inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-    if (field === 'initialValue') return new Property(inv.id, inv.name, inv.startMonths, parseFloat(String(value)), inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-    if (field === 'currentValue') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, parseFloat(String(value)), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color);
-    if (field === 'expectedReturn') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, parseFloat(String(value)) / 100, inv.effectiveRate, inv.taxRate, inv.color);
-    if (field === 'taxRate') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, parseFloat(String(value)) / 100, inv.color);
-    if (field === 'color') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, String(value));
-    if (field === 'rateType') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color);
+    if (field === 'name') return new Property(inv.id, String(value), inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color, inv.primaryResidence);
+    if (field === 'startMonths') return new Property(inv.id, inv.name, parseInt(String(value)), inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color, inv.primaryResidence);
+    if (field === 'initialValue') return new Property(inv.id, inv.name, inv.startMonths, parseFloat(String(value)), inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color, inv.primaryResidence);
+    if (field === 'currentValue') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, parseFloat(String(value)), inv.yearlyRate, inv.effectiveRate, inv.taxRate, inv.color, inv.primaryResidence);
+    if (field === 'expectedReturn') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, parseFloat(String(value)) / 100, inv.effectiveRate, inv.taxRate, inv.color, inv.primaryResidence);
+    if (field === 'taxRate') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, parseFloat(String(value)) / 100, inv.color, inv.primaryResidence);
+    if (field === 'color') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, inv.effectiveRate, inv.taxRate, String(value), inv.primaryResidence);
+    if (field === 'rateType') return new Property(inv.id, inv.name, inv.startMonths, inv.initialValue, inv.currentValue, inv.yearlyRate, value === 'effective', inv.taxRate, inv.color, inv.primaryResidence);
     return inv;
   }
   if (inv instanceof Stock) {

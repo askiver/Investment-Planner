@@ -20,8 +20,8 @@ type InvestmentAny = Property | Stock | Loan | StudentLoan;
 
 export default function App() {
   const [investments, dispatch] = useReducer(investmentsReducer, [] as InvestmentAny[]);
-  const [timelineYears, setTimelineYears] = useState(1);
-  const [income, setIncome] = useState('10000');
+  const [timelineYears, setTimelineYears] = useState(10);
+  const [income, setIncome] = useState('20000');
   const [inflation, setInflation] = useState('2.5');
 
   // --- derived slices ---
@@ -42,7 +42,8 @@ export default function App() {
       stocks,
       properties,
       timelineYears * 12,
-      inflationNum
+      inflationNum,
+        true
     );
   }, [income, inflation, loans, stocks, properties, timelineYears]);
 

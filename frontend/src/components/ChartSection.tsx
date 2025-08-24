@@ -1,18 +1,20 @@
-import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipProps} from 'recharts';
 import { Loan, Property, Stock } from '@/models/models';
 import type { MonthlyPlan } from '@/financeLogic';
 import CustomTooltip from './CustomTooltip';
 import { useMemo } from 'react';
 
-/* ---------- Types ---------- */
-type ChartRow = { month: number; Total: number } & Record<string, number>;
 
-type Scenario = {
+/* ---------- Types ---------- */
+// change these
+export type ChartRow = { month: number; Total: number } & Record<string, number>;
+export type Scenario = {
   rows: ChartRow[];
-  assetKeys: string[]; // properties first, then stocks (only those that appear)
-  loanKeys: string[];  // only loans that appear
+  assetKeys: string[];
+  loanKeys: string[];
   colorByName: Record<string, string>;
 };
+
 
 type ChartSectionProps = {
   plan: MonthlyPlan;
@@ -51,12 +53,10 @@ function ChartPanel({
   title,
   scenario,
   plan,
-  stocks,
 }: {
   title: string;
   scenario: Scenario;
   plan: MonthlyPlan;
-  stocks: Stock[];
 }) {
   const { rows, assetKeys, loanKeys, colorByName } = scenario;
 
@@ -72,7 +72,16 @@ function ChartPanel({
             label={{ value: 'Year', position: 'insideBottomRight', offset: -5 }}
           />
           <YAxis width={90} tickFormatter={moneyTick} />
-          <Tooltip content={p => <CustomTooltip {...p} plan={plan} stocks={stocks} />} />
+          <Tooltip<number, string>
+  content={(p: TooltipProps<number, string>) => (
+    <CustomTooltip
+      {...p}
+      scenario={scenario}
+      plan={plan}
+      moneyFmt={moneyTick}
+    />
+    )}
+        />
           <Legend />
 
           {/* Loans below x-axis */}
@@ -219,8 +228,8 @@ export default function ChartSection({
 
   return (
     <section className="card chart-section">
-      <ChartPanel title="Portfolio Value Over Time (No Tax)" scenario={noTax} plan={plan} stocks={stocks} />
-      <ChartPanel title="Portfolio Value Over Time (With Tax)" scenario={withTax} plan={plan} stocks={stocks} />
+      <ChartPanel title="Portfolio Value Over Time (No Tax)" scenario={noTax} plan={plan} />
+      <ChartPanel title="Portfolio Value Over Time (With Tax)" scenario={withTax} plan={plan} />
     </section>
   );
 }

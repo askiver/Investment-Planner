@@ -1,121 +1,198 @@
-// src/components/CustomTooltip.tsx
+// components/CustomTooltip.tsx
+import React from 'react';
 import type { TooltipProps } from 'recharts';
 import type { MonthlyPlan } from '@/financeLogic';
-import type { Stock } from '@/models/models';
-import type {NameType, ValueType} from "recharts/types/component/DefaultTooltipContent";
+import type { Scenario } from './ChartSection';
 
-type ExtraProps = {
+type Props = TooltipProps<number, string> & {
+  scenario: Scenario;
   plan: MonthlyPlan;
-  stocks: Stock[];
+  moneyFmt?: (n: number) => string;
 };
 
-const fmt = (n: number) =>
-  n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const defaultMoneyFmt = (value: number) =>
+  value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-// Normalize to number (0 if missing/NaN)
-const toNum = (x: unknown) =>
-  typeof x === 'number' && Number.isFinite(x) ? x : 0;
+const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
 
-export default function CustomTooltip(
-  props: TooltipProps<ValueType, NameType> & ExtraProps
-) {
-  const { active, label, payload = [], plan } = props;
-  if (!active) return null;
+const splitMonthYear = (index: number) => ({
+  years: Math.floor(index / 12),
+  months: index % 12,
+});
 
-  const month = Number(label);
-  if (!Number.isFinite(month)) return null;
+const ColorDot = ({ color }: { color: string }) => (
+  <span
+    style={{
+      display: 'inline-block',
+      width: 10,
+      height: 10,
+      borderRadius: '50%',
+      background: color,
+      marginRight: 8,
+      verticalAlign: 'middle',
+      boxShadow: '0 0 0 1px rgba(255,255,255,0.25)',
+    }}
+  />
+);
 
-  const row = (payload[0]?.payload) as
-    | Record<string, unknown>
-    | undefined;
-  if (!row) return null;
+export default function CustomTooltip({
+  active,
+  payload,
+  label,
+  scenario,
+  plan,
+  moneyFmt = defaultMoneyFmt,
+}: Props) {
+  if (!active || !payload || payload.length === 0) return null;
 
-  // Prefer precomputed Total, else sum all numeric fields except 'month'
-  const total =
-    typeof row.Total === 'number'
-      ? (row.Total as number)
-      : Object.entries(row)
-          .filter(([k]) => k !== 'month')
-          .reduce((s, [, v]) => s + toNum(v), 0);
+  const dp = (payload[0] as any)?.payload as Record<string, unknown>;
+  const monthIndex = typeof label === 'number' ? label : num(dp?.month);
+  const { years, months } = splitMonthYear(monthIndex);
 
-  // O(1) lookups
-  const loanByName = new Map((plan.loans ?? []).map((l) => [l.loan.name, l]));
-  const stockPlanByName = new Map(
-    (plan.stockInvestments ?? []).map((s) => [s.asset.name, s])
+  const propertyNames = new Set(plan.propertyInvestments?.map(p => p.asset.name) ?? []);
+  const stockNames    = new Set(plan.stockInvestments?.map(s => s.asset.name) ?? []);
+  const loanNames     = new Set(plan.loans?.map(l => l.loan.name) ?? []);
+
+  const colorByName: Record<string, string> = {};
+  for (const item of payload as any[]) {
+    if (!item || !item.name) continue;
+    colorByName[item.name] = item.color || item.payload?.stroke || item.payload?.fill || '#888';
+  }
+
+  const properties = scenario.assetKeys
+    .filter(n => propertyNames.has(n))
+    .map(name => ({ name, value: num(dp[name]), color: colorByName[name] }))
+    .filter(x => x.value !== 0);
+
+  const stocks = scenario.assetKeys
+    .filter(n => stockNames.has(n))
+    .map(name => {
+      const value = num(dp[name]);
+      const s = plan.stockInvestments?.find(x => x.asset.name === name);
+      const investable = num(s?.investedValues?.[monthIndex]);
+      return { name, value, investable, color: colorByName[name] };
+    })
+    .filter(x => x.value !== 0 || x.investable !== 0);
+
+  const loans = scenario.loanKeys
+    .filter(n => loanNames.has(n))
+    .map(name => {
+      const l = plan.loans?.find(x => x.loan.name === name);
+
+      // Remaining principal (balance)
+      const principalBal = num(l?.principals?.[monthIndex]);
+
+      // Interest payment this month
+      const interestPay = num((l as any)?.ratePayments?.[monthIndex]);
+
+      // Principal payment this month:
+      const principalPay =
+        num((l as any)?.principalPayments?.[monthIndex]);
+
+      return { name, principalBal, principalPay, interestPay, color: colorByName[name] };
+    })
+    .filter(x => x.principalBal !== 0 || x.principalPay !== 0 || x.interestPay !== 0);
+
+  const totalValue  = num(dp.Total);
+  const wealthValue =
+    num((plan as any).wealth?.[monthIndex]) ||
+    num((plan as any).netWorthTaxed?.[monthIndex]) ||
+    num((plan as any).netWorth?.[monthIndex]) ||
+    totalValue;
+  const wealthTaxPaid = num((plan as any).wealthTax?.[monthIndex]);
+
+  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+    <div style={{ fontWeight: 600, marginTop: 10, marginBottom: 6, color: '#cbd5e1' }}>
+      {children}
+    </div>
   );
-  const stockByName = new Map((plan.stockInvestments ?? []).map((s) => [s.asset.name, s]));
-  const sellOffById = plan.stockSellOffs ?? {};
 
-  // Build items to render: Total first (synthetic), then each series from payload
-  const items = [
-    { _kind: 'total' as const, key: '__total', label: 'Total', color: '#222', value: total },
-    ...(payload ?? []).map((p, i) => ({
-      _kind: 'series' as const,
-      key: String(p.dataKey ?? i),
-      // p.name is the friendly label ("Property: X"); p.dataKey is the base key ("X")
-      label: String(p.name ?? p.dataKey ?? ''),
-      base: String(p.dataKey ?? p.name ?? ''),
-      color: p.color ?? '#000',
-      value: toNum(p.value),
-    })),
-  ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const Row = ({
+    color,
+    name,
+    right,
+    style,
+  }: {
+    color?: string;
+    name: string;
+    right: string;
+    style?: React.CSSProperties;
+  }) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 12,
+        lineHeight: 1.4,
+        color: '#e5e7eb',
+        ...style,
+      }}
+    >
+      {color && <ColorDot color={color} />}
+      <div style={{ flex: 1 }}>{name}</div>
+      <div style={{ whiteSpace: 'nowrap' }}>{right}</div>
+    </div>
+  );
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #ccc', padding: 8 }}>
-      <div style={{ fontWeight: 600, marginBottom: 6 }}>
-        Year {Math.floor(month / 12)} · Month {month % 12}
+    <div
+      className="custom-tooltip"
+      style={{
+        background: 'rgba(2,6,23,0.96)',
+        color: '#e5e7eb',
+        border: '1px solid rgba(148,163,184,0.25)',
+        borderRadius: 8,
+        padding: 12,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        maxWidth: 420,
+        backdropFilter: 'blur(2px)',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 8, color: '#f8fafc' }}>
+        {`Year ${years} • Month ${months}`}
       </div>
 
-      {items.map((it) => {
-        if (it._kind === 'total') {
-          return (
-            <div
-              key={it.key}
-              style={{
-                color: it.color,
-                fontWeight: 700,
-                borderBottom: '1px solid #ccc',
-                paddingBottom: 4,
-                marginBottom: 6,
-              }}
-            >
-              Total: {fmt(it.value)}
-            </div>
-          );
-        }
+      {/* Properties */}
+      {properties.length > 0 && <SectionTitle>Properties</SectionTitle>}
+      {properties.map(p => (
+        <Row key={p.name} color={p.color} name={p.name} right={moneyFmt(p.value)} />
+      ))}
 
-        // Series row (asset/loan)
-        const loan = loanByName.get(it.base);
-        const stockPlan = stockPlanByName.get(it.base);
-        const stockMeta = stockByName.get(it.base);
-        const sellOff = stockMeta?.asset.id ? toNum(sellOffById[stockMeta.asset.id]?.[month]) : 0;
+      {/* Stocks */}
+      {stocks.length > 0 && <SectionTitle>Stocks</SectionTitle>}
+      {stocks.map(s => (
+        <Row
+          key={s.name}
+          color={s.color}
+          name={s.name}
+          right={`${moneyFmt(s.value)}  •  investable ${moneyFmt(s.investable)}`}
+        />
+      ))}
 
-        return (
-          <div key={it.key} style={{ color: it.color }}>
-            <div>
-              {it.label}: {fmt(Math.abs(it.value))}
-            </div>
+      {/* Loans */}
+      {loans.length > 0 && <SectionTitle>Loans</SectionTitle>}
+      {loans.map(l => (
+        <Row
+          key={l.name}
+          color={l.color}
+          name={l.name}
+          right={
+            `balance ${moneyFmt(l.principalBal)}  •  ` +
+            `principal ${moneyFmt(l.principalPay)}  •  ` +
+            `interest ${moneyFmt(l.interestPay)}`
+          }
+        />
+      ))}
 
-            {/* Loan payment breakdown */}
-            {loan?.principalPayments?.[month] != null && (
-              <div style={{ marginLeft: 12, fontSize: '0.85em' }}>
-                <div>Principal: {fmt(loan.principalPayments[month] || 0)}</div>
-                <div>Interest: {fmt(loan.ratePayments?.[month] || 0)}</div>
-              </div>
-            )}
+      {/* Divider */}
+      <div style={{ margin: '10px 0', borderTop: '1px solid rgba(148,163,184,0.2)' }} />
 
-            {/* Stock monthly contribution + sell-offs */}
-            {stockPlan && (
-              <div style={{ marginLeft: 12, fontSize: '0.85em' }}>
-                {stockPlan.investedValues?.[month] != null && (
-                  <div>Monthly Investment: {fmt(stockPlan.investedValues[month] || 0)}</div>
-                )}
-                {sellOff > 0 && <div>Sold this month: {fmt(-sellOff)}</div>}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {/* Totals */}
+      <SectionTitle>Totals</SectionTitle>
+      <Row name="Total value" right={moneyFmt(totalValue)} style={{ color: '#f8fafc' }} />
+      <Row name="Wealth value" right={moneyFmt(wealthValue)} style={{ color: '#f8fafc' }} />
+      <Row name="Wealth tax (this month)" right={moneyFmt(wealthTaxPaid)} style={{ color: '#f8fafc' }} />
     </div>
   );
 }

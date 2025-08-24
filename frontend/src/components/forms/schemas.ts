@@ -155,6 +155,21 @@ export const propertySchema: Schema<Property> = {
       editKey: 'rateType',
       parseEdit: (raw) => raw,
     },
+    {
+      key: 'primaryResidence',
+      label: 'Primary residence',
+      kind: 'radio',
+      inCreate: true, inEdit: true,
+      options: [
+        { label: 'Yes', value: 'true' },
+        { label: 'No', value: 'false' },
+      ],
+      // when editing, show the current value as "true"/"false"
+      format: (m) => (m.primaryResidence ? 'true' : 'false'),
+      editKey: 'primaryResidence',
+      parseEdit: (raw) => raw,
+    },
+
     { key: 'color', label: 'Color', kind: 'color', inCreate: true, inEdit: true },
   ],
   defaults: {
@@ -166,6 +181,7 @@ export const propertySchema: Schema<Property> = {
     expectedReturn: '3',
     rateType: 'effective',
     color: '#1f77b4',
+    primaryResidence: 'true',
   },
   build(values) {
     return createProperty({
@@ -177,6 +193,7 @@ export const propertySchema: Schema<Property> = {
       effectiveRate: values.rateType === 'effective',
       taxRate: Number(values.taxRate) / 100,
       color: values.color,
+        primaryResidence: values.primaryResidence === 'true',
     });
   },
 };

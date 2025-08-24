@@ -18,15 +18,16 @@ const int = (v: unknown, d = 0) => Math.max(0, Math.trunc(num(v, d)));
 
 /* ---------- Property ---------- */
 export type PropertyInit = {
-  id?: string;
-  name: string;
-  startMonths: number;
-  initialValue: number;
-  currentValue: number;
-  yearlyRate: number;      // decimal (e.g., 0.03)
-  effectiveRate: boolean;
-  taxRate: number;         // decimal (e.g., 0.22)
-  color?: string;
+    id?: string;
+    name: string;
+    startMonths: number;
+    initialValue: number;
+    currentValue: number;
+    yearlyRate: number;      // decimal (e.g., 0.03)
+    effectiveRate: boolean;
+    taxRate: number;         // decimal (e.g., 0.22)
+    color?: string;
+    primaryResidence: boolean;
 };
 
 export function createProperty(p: PropertyInit): Property {
@@ -38,9 +39,10 @@ export function createProperty(p: PropertyInit): Property {
     num(p.initialValue),
     num(p.currentValue),
     num(p.yearlyRate),
-    !!p.effectiveRate,
+    p.effectiveRate,
     num(p.taxRate),
-    p.color ?? '#1f77b4'
+    p.color ?? '#1f77b4',
+    Boolean(p.primaryResidence),
   );
 }
 

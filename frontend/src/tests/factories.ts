@@ -97,6 +97,6 @@ export const makeProperty = (over: PropertyOverrides = {}) => {
   };
   return new Property(
     d.id, d.name, d.startMonths, d.initialValue, d.currentValue,
-    d.yearlyRate, d.effectiveRate, d.taxRate, d.color
+    d.yearlyRate, d.effectiveRate, d.taxRate, d.color, true
   );
 };

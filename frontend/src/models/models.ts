@@ -10,7 +10,7 @@ export interface LoanSchedule {
   interestPaid:  number[];   // out-going interest  "
 }
 
-function calculateMonthlyIncrease(yearlyRate: number, effectiveRate: boolean): number {
+export function calculateMonthlyIncrease(yearlyRate: number, effectiveRate: boolean): number {
   if (effectiveRate) return Math.pow(1 + yearlyRate, 1/12) - 1;
   else return yearlyRate/12;
 }
@@ -43,8 +43,11 @@ export abstract class Asset {
 }
 
 export class Property extends Asset {
-  constructor(id: string, name: string, startMonths: number, initialValue: number, currentValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string) {
+    primaryResidence: boolean;
+
+  constructor(id: string, name: string, startMonths: number, initialValue: number, currentValue: number, yearlyRate: number, effectiveRate: boolean, taxRate: number, color: string, primaryResidence:boolean) {
     super(id, name, startMonths, initialValue, currentValue, yearlyRate, effectiveRate, taxRate, color);
+    this.primaryResidence = primaryResidence;
   }
 
   // Method for calculating the value of a property after n months
@@ -87,6 +90,30 @@ export class Stock extends Asset {
       }
     }
     return values;
+  }
+    projectedValueMonth(previousValue: number, previousInsertedValue: number, tax: boolean, monthlyInvestment: number, sellOff: number, firstMonth: boolean): number[] {
+        if (firstMonth) {
+            return [this.currentValue, this.initialValue];
+        }
+
+        let value = previousValue;
+        let insertedValue = previousInsertedValue;
+
+        value = value * (1 + this.monthlyIncrease) + monthlyInvestment;
+        value = tax ? (value - (value - insertedValue) * (this.taxRate)) : value;
+        insertedValue += monthlyInvestment;
+
+        // Handle sell-offs
+        if (sellOff > insertedValue) {
+            const remainingSellOff = sellOff - insertedValue;
+            value -= (insertedValue + (1 + this.taxRate) * remainingSellOff);
+            insertedValue = 0;
+        } else {
+            value -= sellOff;
+            insertedValue -= sellOff;
+        }
+        return [value, insertedValue];
+
   }
 }
 

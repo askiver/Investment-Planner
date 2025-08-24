@@ -20,7 +20,8 @@ describe('calculateMonthlyPlan', () => {
       stocks,
       properties,
       24,               // months
-      0.025             // inflation
+      0.025,            // inflation
+        false,           // wealth tax
     );
 
     // basic shape
